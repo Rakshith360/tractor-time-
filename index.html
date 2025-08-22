@@ -1,0 +1,2773 @@
+ <!DOCTYPE html>
+<html lang="te">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ManaTractor Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase Libraries -->
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, RecaptchaVerifier, signInWithPopup, signInWithPhoneNumber, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+    // --- Firebase Configuration ---
+    // Use the firebaseConfig provided by the environment, or a default for local testing.
+    const firebaseConfig = typeof __firebase_config !== 'undefined' 
+        ? JSON.parse(__firebase_config)
+        : {
+  apiKey: "AIzaSyBT4oxE7y1U63on4RW6MTvJDAkMcjaWWqU",
+  authDomain: "our-tracotr.firebaseapp.com",
+  projectId: "our-tracotr",
+  storageBucket: "our-tracotr.firebasestorage.app",
+  messagingSenderId: "215847643262",
+  appId: "1:215847643262:web:80797c313cad2e876e502f"
+        };
+  
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    // Make Firebase services globally available
+    window.auth = auth;
+    window.db = db;
+    window.storage = storage;
+    window.GoogleAuthProvider = GoogleAuthProvider;
+    window.RecaptchaVerifier = RecaptchaVerifier;
+    window.signInWithPopup = signInWithPopup;
+    window.signInWithPhoneNumber = signInWithPhoneNumber;
+    window.onAuthStateChanged = onAuthStateChanged;
+    window.signOut = signOut;
+    window.doc = doc;
+    window.setDoc = setDoc;
+    window.getDoc = getDoc;
+    window.ref = ref;
+    window.uploadBytes = uploadBytes;
+    window.getDownloadURL = getDownloadURL;
+  </script>
+  <style>
+    /* Styling for the message box to provide visual feedback */
+    .message-box {
+      position: fixed;
+      top: 5rem; /* Positioned lower from the top */
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600; 
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.5s ease-in-out;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .message-box.show {
+      opacity: 1;
+    }
+    .message-box.success {
+      background-color: #d1fae5; /* green-100 */
+      color: #065f46; /* green-800 */
+    }
+    .message-box.error {
+      background-color: #fee2e2; /* red-100 */
+      color: #991b1b; /* red-800 */
+    }
+    /* Custom scrollbar for log area */
+    .log-container::-webkit-scrollbar {
+      width: 8px;
+    }
+    .log-container::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 10px;
+    }
+    .log-container::-webkit-scrollbar-thumb {
+      background: #a7f3d0; /* green-200 */
+      border-radius: 10px;
+    }
+    .log-container::-webkit-scrollbar-thumb:hover {
+      background: #6ee7b7; /* green-300 */
+    }
+    .hidden {
+      display: none;
+    }
+
+    /* Custom confirm modal styling */
+    .confirm-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1001; /* Above message box */
+    }
+    .confirm-modal-content {
+        background-color: white;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        max-width: 380px;
+        width: 90%;
+        text-align: center;
+    }
+    .confirm-modal-content button {
+        margin: 0 8px;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    /* Hamburger Menu Specific Styles */
+    .hamburger-menu-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 998;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .hamburger-menu-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .hamburger-sidebar {
+        position: fixed;
+        top: 0;
+        left: -300px; /* Hidden by default */
+        width: 250px;
+        height: 100%;
+        background-color: #fff;
+        box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+        z-index: 999;
+        transition: left 0.3s ease;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    .hamburger-sidebar.show {
+        left: 0; /* Show the sidebar */
+    }
+    .hamburger-icon {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        z-index: 1000;
+        cursor: pointer;
+        background-color: rgba(255,255,255,0.8);
+        padding: 8px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .hamburger-icon span {
+        display: block;
+        width: 25px;
+        height: 3px;
+        background-color: #333;
+        margin: 5px 0;
+        transition: all 0.3s ease-in-out;
+    }
+    /* Style for editable name */
+    [contenteditable="true"] {
+        outline: none;
+        border-bottom: 2px dashed #4ade80; /* green-400 */
+        padding-bottom: 2px;
+    }
+    [contenteditable="true"]:focus {
+        border-bottom: 2px solid #16a34a; /* green-600 */
+    }
+    /* Style for input error */
+    .input-error {
+        border-color: #ef4444 !important; /* red-500 */
+        box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+    }
+    /* Simple spinner for loading states */
+    .spinner {
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border-left-color: #fff;
+        animation: spin 1s ease infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="bg-green-50 min-h-screen flex items-center justify-center p-4">
+
+  <!-- Login Section -->
+  <div id="loginSection" class="bg-white w-full max-w-md rounded-2xl shadow-xl p-6">
+    <h1 class="text-2xl font-bold text-green-700 mb-4 text-center">Login to ManaTractor</h1>
+    
+    <!-- Google Sign-in Button -->
+    <button id="googleSignInBtn" onclick="signInWithGoogle()" class="w-full bg-blue-500 text-white rounded-lg p-3 font-semibold hover:bg-blue-600 flex items-center justify-center gap-2 mb-4">
+      <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C42.021 35.637 44 30.138 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+      Sign in with Google
+    </button>
+
+    <div class="relative flex py-5 items-center">
+        <div class="flex-grow border-t border-gray-300"></div>
+        <span class="flex-shrink mx-4 text-gray-400">OR</span>
+        <div class="flex-grow border-t border-gray-300"></div>
+    </div>
+
+    <!-- Phone Number Login -->
+    <div class="mb-4">
+      <label for="phoneNumber" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+      <input id="phoneNumber" type="tel" class="w-full border border-gray-300 rounded-lg p-2" placeholder="+91 12345 67890" />
+    </div>
+    <button id="sendOtpBtn" onclick="sendOtp()" class="w-full bg-green-600 text-white rounded-lg p-3 font-semibold hover:bg-green-700 flex justify-center items-center">
+        <span id="sendOtpText">Send OTP</span>
+        <div id="sendOtpSpinner" class="spinner hidden"></div>
+    </button>
+
+    <div id="recaptcha-container" class="mt-4"></div>
+
+    <div id="otpSection" class="hidden mt-4">
+      <div class="mb-4">
+        <label for="otp" class="block text-sm font-medium text-gray-700 mb-1">Enter OTP</label>
+        <input id="otp" type="text" class="w-full border border-gray-300 rounded-lg p-2" />
+      </div>
+      <button id="verifyOtpBtn" onclick="verifyOtp()" class="w-full bg-green-600 text-white rounded-lg p-3 font-semibold hover:bg-green-700 flex justify-center items-center">
+        <span id="verifyOtpText">Verify OTP</span>
+        <div id="verifyOtpSpinner" class="spinner hidden"></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Setup Profile Section -->
+  <div id="setupProfileSection" class="hidden bg-white w-full max-w-md rounded-2xl shadow-xl p-6 mx-auto">
+    <h1 class="text-2xl font-bold text-green-700 mb-4 text-center">Setup Your Profile</h1>
+
+    <div class="flex flex-col items-center mb-4">
+      <img id="setupProfilePreview" src="https://placehold.co/128x128/a7f3d0/166534?text=User" class="w-24 h-24 rounded-full border-2 border-green-600 object-cover mb-2" />
+      <input type="file" id="setupProfileImage" accept="image/*" class="hidden" onchange="previewSetupImage(event)">
+      <button onclick="document.getElementById('setupProfileImage').click()" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm">
+        Choose Image (Optional)
+      </button>
+    </div>
+
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-700 mb-1">Your Name <span class="text-red-500">*</span></label>
+      <input id="setupProfileName" type="text" placeholder="Enter your name" class="w-full border border-gray-300 rounded-lg p-2" />
+    </div>
+
+    <button id="saveProfileBtn" onclick="saveUserProfile()" class="w-full bg-green-600 text-white rounded-lg p-3 font-semibold hover:bg-green-700 flex justify-center items-center">
+      <span id="saveProfileText">Save & Continue</span>
+      <div id="saveProfileSpinner" class="spinner hidden"></div>
+    </button>
+  </div>
+
+  <!-- Main App Wrapper -->
+  <div id="mainApp" class="hidden w-full">
+      <!-- Hamburger Icon -->
+      <div id="hamburgerIcon" class="hamburger-icon" onclick="toggleHamburgerMenu()">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+
+      <!-- Hamburger Menu Overlay -->
+      <div id="hamburgerOverlay" class="hamburger-menu-overlay" onclick="toggleHamburgerMenu()"></div>
+
+      <!-- Hamburger Sidebar Menu -->
+      <div id="hamburgerSidebar" class="hamburger-sidebar">
+        <!-- User Profile Info moved here -->
+        <div class="flex items-center gap-3 pb-4 border-b border-gray-200">
+            <img id="userProfilePic" src="https://placehold.co/48x48/a7f3d0/166534?text=User" alt="Profile" class="w-12 h-12 rounded-full border-2 border-green-600 object-cover">
+            <div class="flex-1">
+                <div id="userProfileNameDisplay" class="text-sm font-medium text-gray-800">User</div>
+                <div id="userProfileEmail" class="text-xs text-gray-500 truncate"></div>
+            </div>
+        </div>
+
+        <!-- Language Selector moved here -->
+        <div class="w-full">
+            <label for="languageSelectorMenu" class="block text-sm font-medium text-gray-700 mb-1">Select Language:</label>
+            <select id="languageSelectorMenu" onchange="setLanguage(this.value); toggleHamburgerMenu();" class="bg-white border border-gray-300 rounded-lg p-2 text-sm text-gray-700 shadow-sm focus:ring-green-500 focus:border-green-500 w-full">
+                <option value="te">తెలుగు</option>
+                <option value="en">English</option>
+                <option value="hi">हिन्दी</option>
+                <option value="ar">العربية</option>
+                <option value="ur">اردو</option>
+            </select>
+        </div>
+
+        <!-- View Saved Logs Button moved here -->
+        <button id="viewLogsBtnMenu" onclick="showLogsView(); toggleHamburgerMenu();" class="bg-blue-500 text-white rounded-lg p-3 font-semibold hover:bg-blue-600 w-full">
+            View Saved Logs
+        </button>
+
+        <!-- NEW: Feedback Option with mailto link and onclick handler -->
+        <a href="javascript:void(0);" id="feedbackLinkMenu" onclick="handleFeedbackClick('manatractor77@gmail.com');" class="bg-teal-500 text-white rounded-lg p-3 font-semibold hover:bg-teal-600 w-full text-center">
+            Feedback
+        </a>
+        
+        <button id="logoutBtn" onclick="logout()" class="bg-red-500 text-white rounded-lg p-3 font-semibold hover:bg-red-600 w-full mt-auto">
+            Logout
+        </button>
+
+        <!-- Renew Subscription Link could also be moved here if desired -->
+        <div class="text-center mt-auto pt-4 border-t border-gray-200">
+          <a href="#" onclick="showSubscriptionView(); toggleHamburgerMenu();" id="renewSubscriptionLinkMenu" class="text-blue-500 underline text-sm"></a>
+        </div>
+      </div>
+
+
+      <!-- Dashboard Section -->
+      <div id="dashboardSection" class="bg-white w-full max-w-md rounded-2xl shadow-xl p-6 mx-auto">
+        <h1 id="welcomeHeading" class="text-2xl font-bold text-green-700 mb-1"></h1>
+        <p id="tagline" class="text-gray-500 mb-4"></p>
+
+        <!-- Name and Phone Number fields -->
+        <div class="mb-4">
+          <label id="nameLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+          <div class="relative">
+            <input id="userName" type="text" class="w-full border border-gray-300 rounded-lg p-2 pr-10" />
+            <button onclick="getContact()" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-green-600 focus:outline-none">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0v12h8V4H6zm4 2a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM6 13a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label id="phoneLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+          <div class="relative">
+            <input id="userPhoneNumber" type="tel" class="w-full border border-gray-300 rounded-lg p-2 pr-10" />
+            <button onclick="callPhoneNumber()" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-green-600 focus:outline-none">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.103 6.103l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hourly Work Form (now combined with trip inputs) -->
+        <div id="hourlyWorkForm">
+            <div class="mb-4">
+              <label id="dateLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+              <input id="workDate" type="date" class="w-full border border-gray-300 rounded-lg p-2" />
+            </div>
+
+            <!-- Start Time & End Time side-by-side -->
+            <div class="flex flex-col sm:flex-row gap-4 mb-4">
+              <div class="flex-1">
+                <label id="startTimeLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+                <input id="startTime" type="time" class="w-full border border-gray-300 rounded-lg p-2" />
+              </div>
+
+              <div class="flex-1">
+                <label id="endTimeLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+                <input id="endTime" type="time" class="w-full border border-gray-300 rounded-lg p-2" />
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label id="ratePerHourLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+              <input id="ratePerHour" type="number" value="2000" class="w-full border border-gray-300 rounded-lg p-2" />
+            </div>
+
+            <!-- Moved Trip fields here -->
+            <div class="mb-4">
+                <label id="numberOfTripsLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+                <input id="numberOfTrips" type="number" value="0" min="0" class="w-full border border-gray-300 rounded-lg p-2" />
+            </div>
+            <div class="mb-4">
+                <label id="costPerTripLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+                <input id="costPerTrip" type="number" value="500" min="0" class="w-full border border-gray-300 rounded-lg p-2" />
+            </div>
+            <!-- End Moved Trip fields -->
+
+            <!-- Note Content field for Combined Work Form -->
+            <div class="mb-4">
+              <label id="noteContentLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+              <textarea id="noteContent" class="w-full border border-gray-300 rounded-lg p-2 h-32 resize-none" rows="5" placeholder="Please enter the work info details"></textarea>
+            </div>
+            <!-- END Note content field -->
+        </div>
+
+        <!-- Display area for calculated results -->
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-green-100 p-3 rounded-xl text-center">
+            <p class="text-sm text-gray-600" id="hourlyTimeLabel"></p>
+            <h2 id="hourlyTotalTime" class="text-xl font-bold">0 hrs</h2>
+          </div>
+          <div class="bg-yellow-100 p-3 rounded-xl text-center">
+            <p id="hourlyEarningsLabel" class="text-sm text-gray-600"></p>
+            <h2 id="hourlyTotalEarnings" class="text-xl font-bold">₹0</h2>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div class="bg-green-100 p-3 rounded-xl text-center">
+            <p class="text-sm text-gray-600" id="tripCountLabel"></p>
+            <h2 id="tripTotalTrips" class="text-xl font-bold">0 trips</h2>
+          </div>
+          <div class="bg-yellow-100 p-3 rounded-xl text-center">
+            <p id="tripEarningsLabel" class="text-sm text-gray-600"></p>
+            <h2 id="tripTotalEarnings" class="text-xl font-bold">₹0</h2>
+          </div>
+        </div>
+
+        <!-- Combined Total Earnings Display -->
+        <div class="bg-blue-100 p-4 rounded-xl text-center mt-4">
+          <p id="combinedEarningsLabel" class="text-lg text-blue-800 font-semibold"></p>
+          <h2 id="combinedTotalEarnings" class="text-3xl font-extrabold text-blue-700">₹0</h2>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex gap-4 mt-6">
+          <button id="calculateBtn" onclick="calculateAllEarnings()" class="flex-1 bg-green-600 text-white rounded-lg p-3 font-semibold hover:bg-green-700"></button>
+          <button id="saveBtn" onclick="saveCombinedData()" class="flex-1 bg-blue-600 text-white rounded-lg p-3 font-semibold hover:bg-blue-700"></button>
+        </div>
+
+        <div class="text-sm text-gray-500 text-center mt-4">
+          <span id="subscriptionValidityText"></span> <span class="font-bold" id="subscriptionValidityDisplay"></span>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center text-xs text-gray-400 mt-6 pt-4 border-t border-gray-100">
+            <p id="footerText"></p>
+        </footer>
+
+      </div>
+
+      <!-- Logs Section -->
+      <div id="logsSection" class="bg-white w-full max-w-xl rounded-2xl shadow-xl p-6 relative hidden mx-auto">
+        <!-- Back Button -->
+        <button onclick="showDashboardView()" class="absolute top-4 left-4 bg-gray-200 text-gray-700 p-2 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </button>
+
+        <h1 id="logsHeading" class="text-2xl font-bold text-green-700 mb-4 text-center mt-4"></h1>
+        <p id="logsTagline" class="text-gray-500 mb-6 text-center"></p>
+
+        <!-- Search Bar for Logs -->
+        <div class="mb-4">
+          <input type="text" id="logSearchInput" onkeyup="filterLogs()" class="w-full border border-gray-300 rounded-lg p-2" />
+        </div>
+
+        <!-- Logs Container -->
+        <div id="logsContainer" class="log-container space-y-4 max-h-96 overflow-y-auto pr-2">
+          <!-- Logs will be dynamically loaded here -->
+        </div>
+        
+        <!-- UPDATE: Added Footer to Logs Section -->
+        <footer class="text-center text-xs text-gray-400 mt-6 pt-4 border-t border-gray-100">
+            <p id="footerTextLogs"></p>
+        </footer>
+      </div>
+
+      <!-- Subscription Plan Section (initially hidden) -->
+      <div id="subscriptionPlanSection" class="bg-white w-full max-w-md rounded-2xl shadow-xl p-6 relative hidden mx-auto">
+        <!-- Back Button -->
+        <button onclick="showDashboardView()" class="absolute top-4 left-4 bg-gray-200 text-gray-700 p-2 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </button>
+
+        <h1 id="subscriptionPlansHeading" class="text-2xl font-bold text-green-700 mb-4 text-center mt-4"></h1>
+        <p id="subscriptionPlansTagline" class="text-gray-500 mb-6 text-center"></p>
+
+        <div class="space-y-4">
+          <!-- Free Trial Plan -->
+          <div id="freeTrialPlanCard" class="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center shadow-sm">
+            <h3 id="freeTrialHeading" class="text-xl font-bold text-purple-800 mb-2"></h3>
+            <p id="freeTrialDuration" class="text-2xl font-extrabold text-purple-600 mb-2"></p>
+            <p id="freeTrialTagline" class="text-gray-600 mb-3"></p>
+            <button id="activateFreeTrialBtn" onclick="activateFreeTrial()" class="bg-purple-600 text-white rounded-lg p-2 font-semibold w-full hover:bg-purple-700">
+            </button>
+          </div>
+
+          <!-- Plan 1: Monthly Plan -->
+          <div class="bg-green-50 border border-green-200 rounded-xl p-4 text-center shadow-sm">
+            <h3 id="monthlyPlanHeading" class="text-xl font-bold text-green-800 mb-2"></h3>
+            <p id="monthlyPlanPrice" class="text-2xl font-extrabold text-green-600 mb-2"></p>
+            <p id="monthlyPlanTagline" class="text-gray-600 mb-3"></p>
+            <button id="buyMonthlyBtn" onclick="showPaymentOptions('monthly_plan', 150, 1)" class="bg-green-600 text-white rounded-lg p-2 font-semibold w-full hover:bg-green-700">
+            </button>
+          </div>
+
+          <!-- Plan 2: 6 Months Plan -->
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center shadow-sm">
+            <h3 id="sixMonthPlanHeading" class="text-xl font-bold text-blue-800 mb-2"></h3>
+            <p id="sixMonthPlanPrice" class="text-2xl font-extrabold text-blue-600 mb-2"></p>
+            <p id="sixMonthPlanTagline" class="text-gray-600 mb-3"></p>
+            <button id="buySixMonthBtn" onclick="showPaymentOptions('six_month_plan', 400, 6)" class="bg-blue-600 text-white rounded-lg p-2 font-semibold w-full hover:bg-blue-700">
+            </button>
+          </div>
+
+          <!-- Plan 3: Annual Plan -->
+          <div class="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center shadow-sm">
+            <h3 id="annualPlanHeading" class="text-xl font-bold text-purple-800 mb-2"></h3>
+            <p id="annualPlanPrice" class="text-2xl font-extrabold text-purple-600 mb-2"></p>
+            <p id="annualPlanTagline" class="text-gray-600 mb-3"></p>
+            <button id="buyAnnualBtn" onclick="showPaymentOptions('annual_plan', 750, 12)" class="bg-purple-600 text-white rounded-lg p-2 font-semibold w-full hover:bg-purple-700">
+            </button>
+          </div>
+        </div>
+         <!-- UPDATE: Added Footer to Subscription Section -->
+        <footer class="text-center text-xs text-gray-400 mt-6 pt-4 border-t border-gray-100">
+            <p id="footerTextSubscription"></p>
+        </footer>
+      </div>
+
+      <!-- New: Payment Options Section (initially hidden) -->
+      <div id="paymentOptionsSection" class="bg-white w-full max-w-md rounded-2xl shadow-xl p-6 relative hidden mx-auto">
+        <!-- Back Button -->
+        <button onclick="showSubscriptionView()" class="absolute top-4 left-4 bg-gray-200 text-gray-700 p-2 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-75">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </button>
+
+        <h1 id="paymentOptionsHeading" class="text-2xl font-bold text-green-700 mb-4 text-center mt-4"></h1>
+        <p class="text-gray-500 mb-6 text-center">
+            <span id="selectedPlanInfoPrefix"></span>
+            <span id="selectedPlanName" class="font-semibold text-green-700"></span> -
+            <span id="selectedPlanPrice" class="font-bold text-green-700"></span>
+        </p>
+
+        <div class="space-y-4">
+          <button onclick="showPaymentDetails('upi')" class="flex items-center justify-center gap-3 bg-gray-100 border border-gray-300 rounded-xl p-4 w-full text-lg font-semibold text-gray-800 hover:bg-gray-200">
+            <img src="https://placehold.co/30x30/2A0064/FFFFFF?text=PhonePe" alt="PhonePe Icon" class="w-8 h-8 rounded-full">
+            <span id="upiOptionText"></span>
+          </button>
+
+          <button onclick="showPaymentDetails('card')" class="flex items-center justify-center gap-3 bg-gray-100 border border-gray-300 rounded-xl p-4 w-full text-lg font-semibold text-gray-800 hover:bg-gray-200">
+            <img src="https://placehold.co/30x30/000000/FFFFFF?text=Card" alt="Card Icon" class="w-8 h-8 rounded-full">
+            <span id="cardOptionText"></span>
+          </button>
+
+          <button onclick="showPaymentDetails('netbanking')" class="flex items-center justify-center gap-3 bg-gray-100 border border-gray-300 rounded-xl p-4 w-full text-lg font-semibold text-gray-800 hover:bg-gray-200">
+            <img src="https://placehold.co/30x30/4CAF50/FFFFFF?text=Bank" alt="Bank Icon" class="w-8 h-8 rounded-full">
+            <span id="netbankingOptionText"></span>
+          </button>
+
+          <button onclick="showPaymentDetails('wallet')" class="flex items-center justify-center gap-3 bg-gray-100 border border-gray-300 rounded-xl p-4 w-full text-lg font-semibold text-gray-800 hover:bg-gray-200">
+            <img src="https://placehold.co/30x30/FF9800/FFFFFF?text=Wallet" alt="Wallet Icon" class="w-8 h-8 rounded-full">
+            <span id="walletOptionText"></span>
+          </button>
+        </div>
+
+        <!-- Payment Details Sections (Initially Hidden) -->
+        <div id="upiDetails" class="mt-6 p-4 border border-gray-200 rounded-xl bg-gray-50 hidden">
+          <h3 id="upiDetailsHeading" class="text-lg font-semibold text-gray-700 mb-3"></h3>
+          <div class="mb-4">
+            <label id="upiIdLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+            <input type="text" id="upiId" class="w-full border border-gray-300 rounded-lg p-2" />
+          </div>
+          <div class="mb-4">
+            <label id="upiNameLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+            <input type="text" id="upiName" class="w-full border border-gray-300 rounded-lg p-2" />
+          </div>
+          <button onclick="processPayment('UPI')" class="bg-green-600 text-white rounded-lg p-2 font-semibold w-full hover:bg-green-700">
+            <span id="upiPayBtnText"></span> ₹<span id="upiPayAmount">0</span>
+          </button>
+        </div>
+
+        <div id="cardDetails" class="mt-6 p-4 border border-gray-200 rounded-xl bg-gray-50 hidden">
+          <h3 id="cardDetailsHeading" class="text-lg font-semibold text-gray-700 mb-3"></h3>
+          <div class="mb-4">
+            <label id="cardNumberLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+            <input type="text" id="cardNumber" class="w-full border border-gray-300 rounded-lg p-2" maxlength="19" />
+          </div>
+          <div class="mb-4">
+            <label id="cardNameLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+            <input type="text" id="cardName" class="w-full border border-gray-300 rounded-lg p-2" />
+          </div>
+          <div class="flex gap-4 mb-4">
+            <div class="flex-1">
+              <label id="cardExpiryLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+              <input type="text" id="cardExpiry" class="w-full border border-gray-300 rounded-lg p-2" maxlength="5" />
+            </div>
+            <div class="flex-1">
+              <label id="cardCvvLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+              <input type="text" id="cardCvv" class="w-full border border-gray-300 rounded-lg p-2" maxlength="4" />
+            </div>
+          </div>
+          <button onclick="processPayment('Card')" class="bg-green-600 text-white rounded-lg p-2 font-semibold w-full hover:bg-green-700">
+            <span id="cardPayBtnText"></span> ₹<span id="cardPayAmount">0</span>
+          </button>
+        </div>
+
+        <div id="netbankingDetails" class="mt-6 p-4 border border-gray-200 rounded-xl bg-gray-50 hidden">
+          <h3 id="netbankingDetailsHeading" class="text-lg font-semibold text-gray-700 mb-3"></h3>
+          <div class="mb-4">
+            <label id="bankSelectLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+            <select id="bankSelect" class="w-full border border-gray-300 rounded-lg p-2">
+              <!-- Options dynamically translated -->
+            </select>
+          </div>
+          <div class="mb-4">
+            <label id="netbankingIdLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+            <input type="text" id="netbankingId" class="w-full border border-gray-300 rounded-lg p-2" />
+          </div>
+          <button onclick="processPayment('Net Banking')" class="bg-green-600 text-white rounded-lg p-2 font-semibold w-full hover:bg-green-700">
+            <span id="netbankingPayBtnText"></span> ₹<span id="netbankingPayAmount">0</span>
+          </button>
+        </div>
+
+        <div id="walletDetails" class="mt-6 p-4 border border-gray-200 rounded-xl bg-gray-50 hidden">
+          <h3 id="walletDetailsHeading" class="text-lg font-semibold text-gray-700 mb-3"></h3>
+          <div class="mb-4">
+            <label id="walletSelectLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+            <select id="walletSelect" class="w-full border border-gray-300 rounded-lg p-2">
+              <!-- Options dynamically translated -->
+            </select>
+          </div>
+          <div class="mb-4">
+            <label id="walletPhoneNumberLabel" class="block text-sm font-medium text-gray-700 mb-1"></label>
+            <input type="tel" id="walletPhoneNumber" class="w-full border border-gray-300 rounded-lg p-2" />
+          </div>
+          <button onclick="processPayment('Wallet')" class="bg-green-600 text-white rounded-lg p-2 font-semibold w-full hover:bg-green-700">
+            <span id="walletPayBtnText"></span> ₹<span id="walletPayAmount">0</span>
+          </button>
+        </div>
+      </div>
+  </div>
+
+
+  <!-- Message Box Container -->
+  <div id="messageBox" class="message-box"></div>
+
+  <!-- Custom Confirm Modal Overlay (kept for other potential uses) -->
+  <div id="customConfirmModal" class="confirm-modal-overlay hidden">
+    <div class="confirm-modal-content">
+      <p id="confirmModalMessage" class="mb-6 text-gray-700 font-medium text-lg"></p>
+      <div class="flex justify-center">
+        <button id="confirmModalCancelBtn" class="bg-gray-300 text-gray-800 hover:bg-gray-400"></button>
+        <button id="confirmModalConfirmBtn" class="bg-red-500 text-white hover:bg-red-600"></button>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    // --- AUTHENTICATION & PROFILE LOGIC ---
+    
+    // Function to show a specific main view (login, setup, or app)
+    function showView(viewName) {
+        document.getElementById('loginSection').classList.add('hidden');
+        document.getElementById('setupProfileSection').classList.add('hidden');
+        document.getElementById('mainApp').classList.add('hidden');
+        
+        if (document.getElementById(viewName)) {
+            document.getElementById(viewName).classList.remove('hidden');
+        }
+    }
+
+    // Function to show the main app and update UI with user data
+    function showAppView(userData) {
+        showView('mainApp');
+        
+        // Update UI with user info from Firestore
+        if (userData) {
+            const defaultAvatar = 'https://placehold.co/48x48/a7f3d0/166534?text=User';
+            document.getElementById('userProfilePic').src = userData.photoURL || defaultAvatar;
+            document.getElementById('userProfilePic').onerror = () => { document.getElementById('userProfilePic').src = defaultAvatar; };
+
+            document.getElementById('userProfileNameDisplay').textContent = userData.name || 'User';
+            document.getElementById('userProfileEmail').textContent = userData.email || userData.phoneNumber || '';
+            
+            const welcomeName = userData.name || 'User';
+            document.getElementById('welcomeHeading').innerHTML = T('welcome_heading').replace('{userName}', welcomeName);
+        }
+        
+        showDashboardView(); // Go to the main dashboard within the app
+    }
+
+    // NEW: Checks if a user profile exists in Firestore, routes to setup or app.
+    async function checkAndLoadUserProfile(user) {
+        if (!user) return;
+        const userDocRef = window.doc(window.db, "users", user.uid);
+        try {
+            const userDocSnap = await window.getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+                // Profile exists, load the main app with user data
+                const userData = userDocSnap.data();
+                showAppView(userData);
+            } else {
+                // New user or profile not set up, show the profile setup screen
+                showView('setupProfileSection');
+                // Pre-fill from Google if available
+                if (user.displayName) {
+                    document.getElementById('setupProfileName').value = user.displayName;
+                }
+                if (user.photoURL) {
+                    document.getElementById('setupProfilePreview').src = user.photoURL;
+                }
+            }
+        } catch (error) {
+            console.error("Error checking user profile:", error);
+            showMessage(`Error loading profile: ${error.message}`, 'error');
+            showView('loginSection'); // Fallback to login on error
+        }
+    }
+
+    // Google Sign-In
+    function signInWithGoogle() {
+        const provider = new window.GoogleAuthProvider();
+        window.signInWithPopup(window.auth, provider)
+            .then((result) => {
+                const user = result.user;
+                showMessage(`Welcome, ${user.displayName}!`, 'success');
+                checkAndLoadUserProfile(user); // Check for profile
+            }).catch((error) => {
+                showMessage(`Google Sign-In Error: ${error.message}`, 'error');
+            });
+    }
+
+    // Phone Number Sign-In
+    function setupRecaptcha() {
+        if (!window.recaptchaVerifier) {
+            window.recaptchaVerifier = new window.RecaptchaVerifier(window.auth, 'recaptcha-container', {
+                'size': 'invisible',
+                'callback': () => { /* reCAPTCHA solved */ }
+            });
+        }
+    }
+
+    function sendOtp() {
+        const phoneNumber = document.getElementById('phoneNumber').value;
+        if (!phoneNumber || phoneNumber.length < 10) {
+            showMessage('Please enter a valid phone number.', 'error');
+            return;
+        }
+        
+        const sendOtpBtn = document.getElementById('sendOtpBtn');
+        sendOtpBtn.disabled = true;
+        document.getElementById('sendOtpText').classList.add('hidden');
+        document.getElementById('sendOtpSpinner').classList.remove('hidden');
+
+        const appVerifier = window.recaptchaVerifier;
+
+        window.signInWithPhoneNumber(window.auth, phoneNumber, appVerifier)
+            .then((confirmationResult) => {
+                window.confirmationResult = confirmationResult;
+                showMessage('OTP has been sent to your phone.', 'success');
+                document.getElementById('otpSection').classList.remove('hidden');
+            }).catch((error) => {
+                showMessage(`Error: ${error.message}`, 'error');
+                // Reset reCAPTCHA
+                if (window.recaptchaVerifier) {
+                    window.recaptchaVerifier.render().then(function(widgetId) {
+                        grecaptcha.reset(widgetId);
+                    });
+                }
+            }).finally(() => {
+                sendOtpBtn.disabled = false;
+                document.getElementById('sendOtpText').classList.remove('hidden');
+                document.getElementById('sendOtpSpinner').classList.add('hidden');
+            });
+    }
+
+    function verifyOtp() {
+        const code = document.getElementById('otp').value;
+        if (!code) {
+            showMessage('Please enter the OTP.', 'error');
+            return;
+        }
+
+        const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+        verifyOtpBtn.disabled = true;
+        document.getElementById('verifyOtpText').classList.add('hidden');
+        document.getElementById('verifyOtpSpinner').classList.remove('hidden');
+
+        window.confirmationResult.confirm(code).then((result) => {
+            const user = result.user;
+            showMessage('Phone number verified successfully!', 'success');
+            checkAndLoadUserProfile(user); // Check for profile
+        }).catch((error) => {
+            showMessage('Invalid OTP. Please try again.', 'error');
+        }).finally(() => {
+            verifyOtpBtn.disabled = false;
+            document.getElementById('verifyOtpText').classList.remove('hidden');
+            document.getElementById('verifyOtpSpinner').classList.add('hidden');
+        });
+    }
+    
+    // Logout function
+    function logout() {
+        window.signOut(window.auth).then(() => {
+            showView('loginSection');
+            showMessage('You have been logged out.', 'success');
+        }).catch((error) => {
+            showMessage(`Logout Error: ${error.message}`, 'error');
+        });
+    }
+    
+    // Check authentication state on page load
+    function checkAuthState() {
+        window.onAuthStateChanged(window.auth, (user) => {
+            if (user) {
+                checkAndLoadUserProfile(user);
+            } else {
+                showView('loginSection');
+                setupRecaptcha(); // Setup reCAPTCHA for phone login
+            }
+        });
+    }
+
+    // NEW: Save user profile to Firestore
+    async function saveUserProfile() {
+        const user = window.auth.currentUser;
+        if (!user) {
+            showMessage('You must be logged in to save a profile.', 'error');
+            return;
+        }
+
+        const nameInput = document.getElementById('setupProfileName');
+        const profileName = nameInput.value.trim();
+        const imageFile = document.getElementById('setupProfileImage').files[0];
+
+        if (!profileName) {
+            showMessage('Name is a required field.', 'error');
+            nameInput.classList.add('input-error');
+            return;
+        }
+        nameInput.classList.remove('input-error');
+
+        const saveBtn = document.getElementById('saveProfileBtn');
+        saveBtn.disabled = true;
+        document.getElementById('saveProfileText').classList.add('hidden');
+        document.getElementById('saveProfileSpinner').classList.remove('hidden');
+
+        try {
+            let photoURL = user.photoURL || null;
+
+            // If a new image is selected, upload it to Firebase Storage
+            if (imageFile) {
+                const storageRef = window.ref(window.storage, `profile_images/${user.uid}`);
+                await window.uploadBytes(storageRef, imageFile);
+                photoURL = await window.getDownloadURL(storageRef);
+            }
+
+            // Create the user data object
+            const userData = {
+                uid: user.uid,
+                name: profileName,
+                photoURL: photoURL,
+                email: user.email,
+                phoneNumber: user.phoneNumber,
+                createdAt: new Date().toISOString()
+            };
+
+            // Save the data to Firestore
+            await window.setDoc(window.doc(window.db, "users", user.uid), userData);
+            
+            showMessage('Profile saved successfully!', 'success');
+            showAppView(userData); // Proceed to the main app
+
+        } catch (error) {
+            console.error("Error saving profile:", error);
+            showMessage(`Error: ${error.message}`, 'error');
+        } finally {
+            saveBtn.disabled = false;
+            document.getElementById('saveProfileText').classList.remove('hidden');
+            document.getElementById('saveProfileSpinner').classList.add('hidden');
+        }
+    }
+
+    // NEW: Preview image for profile setup
+    function previewSetupImage(event) {
+        const reader = new FileReader();
+        reader.onload = function(){
+            const output = document.getElementById('setupProfilePreview');
+            output.src = reader.result;
+        };
+        reader.readAsDataURL(event.target.files[0]);
+    }
+
+    // --- END OF AUTHENTICATION & PROFILE LOGIC ---
+
+    // Global variables
+    let currentUserName = '';
+    let currentUserPhoneNumber = '';
+    let selectedPlanAmount = 0;
+    let selectedPlanDuration = 0; // in months
+    let currentLang = 'te'; // Default language
+
+    // Global variables for holding calculated values before saving
+    let currentHourlyEarnings = 0;
+    let currentTripEarnings = 0;
+    let currentCombinedEarnings = 0;
+    let currentHourlyTime = '0 hrs';
+
+    // --- Translation Data ---
+    const translations = {
+      // Dashboard Section
+      welcome_heading: {
+        te: "స్వాగతం, <span class='font-bold'>{userName}</span> అన్న 🚜",
+        en: "Welcome, <span class='font-bold'>{userName}</span> Anna 🚜",
+        hi: "स्वागत है, <span class='font-bold'>{userName}</span> अन्ना �",
+        ar: "أهلاً بك، <span class='font-bold'>{userName}</span> أنا🚜 ",
+        ur: "خوش آمدید، <span class='font-bold'>{userName}</span> انا 🚜"
+      },
+      tagline: {
+        te: "మీ ట్రాక్టర్ పని, సమయం & ఆదాయాన్ని సులభంగా ట్రాక్ చేయండి.",
+        en: "Track your tractor work, time & earnings with ease.",
+        hi: "अपने ट्रैक्टर के काम, समय और कमाई को आसानी से ट्रैक करें।",
+        ar: "تتبع عمل جرارك، وقته وأرباحه بسهولة.",
+        ur: "اپنے ٹریکٹر کے کام, وقت اور کمائی کو آسانی سے ٹریک کریں۔"
+      },
+      name_label: {
+        te: "పేరు నమోదు చేయండి",
+        en: "Enter Name",
+        hi: "नाम दर्ज करें",
+        ar: "أدخل الاسم",
+        ur: "نام درج کریں"
+      },
+      name_placeholder: {
+        te: "మీ పూర్తి పేరును నమోదు చేయండి",
+        en: "Enter your full name",
+        hi: "अपना पूरा नाम दर्ज करें",
+        ar: "أدخل اسمك الكامل",
+        ur: "اپنا پورا نام درج کریں"
+      },
+      phone_label: {
+        te: "ఫోన్ నంబర్",
+        en: "Phone Number",
+        hi: "फ़ोन नंबर",
+        ar: "رقم الهاتف",
+        ur: "فون نمبر"
+      },
+      phone_placeholder: {
+        te: "ఫోన్ నంబర్ నమోదు చేయండి",
+        en: "Enter phone number",
+        hi: "फ़ोन नंबर दर्ज करें",
+        ar: "أدخل رقم الهاتف",
+        ur: "فون نمبر درج کریں"
+      },
+      phone_invalid: {
+        te: "దయచేసి చెల్లుబాటు అయ్యే ఫోన్ నంబర్‌ను నమోదు చేయండి (కనీసం 10 అంకెలు).",
+        en: "Please enter a valid phone number (at least 10 digits).",
+        hi: "कृपया एक मान्य फ़ोन नंबर दर्ज करें (कम से कम 10 अंक)।",
+        ar: "يرجى إدخال رقم هاتف صالح (10 أرقام على الأقل).",
+        ur: "براہ کرم ایک درست فون نمبر درج کریں (کم از کم 10 ہندسے)۔"
+      },
+      date_label: {
+        te: "తేదీ",
+        en: "Date",
+        hi: "तारीख",
+        ar: "التاريخ",
+        ur: "تاریخ"
+      },
+      start_time_label: {
+        te: "ప్రారంభ సమయం",
+        en: "Start Time",
+        hi: "शुरू करने का समय",
+        ar: "وقت البدء",
+        ur: "آغاز کا وقت"
+      },
+      end_time_label: {
+        te: "ముగింపు సమయం",
+        en: "End Time",
+        hi: "समाप्ति का समय",
+        ar: "وقت ख़त्म होने کا",
+        ur: "اختتام کا وقت"
+      },
+      rate_per_hour_label: {
+        te: "గంటకు రేటు (₹)",
+        en: "Rate per Hour (₹)",
+        hi: "प्रति घंटा दर (₹)",
+        ar: "السعر بالساعة (₹)",
+        ur: "فی گھنٹہ کی شرح (₹)"
+      },
+      calculate_button: {
+        te: "లెక్కించు",
+        en: "Calculate",
+        hi: "गणना करें",
+        ar: "احسب",
+        ur: "حساب لگائیں"
+      },
+      save_button: {
+        te: "సేవ్ చేయి",
+        en: "Save",
+        hi: "सहेजें",
+        ar: "حفظ",
+        ur: "محفوظ کریں"
+      },
+      hourly_time_label: {
+        te: "గంటల సమయం",
+        en: "Hourly Time",
+        hi: "घंटे का समय",
+        ar: "وقت بالساعة",
+        ur: "گھنٹے کا وقت"
+      },
+      hourly_earnings_label: {
+        te: "గంటల ఆదాయం",
+        en: "Hourly Earnings",
+        hi: "घंटे की कमाई",
+        ar: "أرباح بالساعة",
+        ur: "گھنٹے کی کمائی"
+      },
+      total_trips_label: {
+        te: "ట్రిప్పుల సంఖ్య",
+        en: "Number of Trips",
+        hi: "ट्रिपों की संख्या",
+        ar: "عدد الرحلات",
+        ur: "ٹرپس کی تعداد"
+      },
+      cost_per_trip_label: {
+        te: "ఒక ట్రిప్‌కు ధర (₹)",
+        en: "Cost per Trip (₹)",
+        hi: "प्रति ट्रिप लागत (₹)",
+        ar: "التكلفة لكل رحلة (₹)",
+        ur: "فی ٹرپ لاگت"
+      },
+      trip_count_display_label: {
+        te: "మొత్తం ట్రిప్పులు",
+        en: "Total Trips",
+        hi: "कुल ट्रिप",
+        ar: "إجمالي الرحلات",
+        ur: "کل ٹرپس"
+      },
+      trip_earnings_label: {
+        te: "ట్రిప్ ఆదాయం",
+        en: "Trip Earnings",
+        hi: "ट्रिप की कमाई",
+        ar: "أرباح الرحلة",
+        ur: "ٹرپ کی کمائی"
+      },
+      combined_earnings_label: {
+        te: "మొత్తం",
+        en: "Total Amount",
+        hi: "कुल राशि",
+        ar: "المبلغ الإجمالي",
+        ur: "کل رقم"
+      },
+      subscription_status_label: {
+        te: "సభ్యత్వ స్థితి:",
+        en: "Subscription Status:",
+        hi: "सदस्यता स्थिति:",
+        ar: "حالة الاشتراك:",
+        ur: "سبسکرپشن کی حیثیت:"
+      },
+      subscription_valid_till_text: {
+        te: "సభ్యత్వం దీని వరకు చెల్లుబాటు అవుతుంది:",
+        en: "Subscription valid till:",
+        hi: "सदस्यता यहाँ तक मान्य है:",
+        ar: "الاشتراك صالح حتى:",
+        ur: "سبسکرپشن اس وقت تک درست ہے:"
+      },
+      free_trial_status_text: {
+        te: "ఉచిత ట్రయల్",
+        en: "Free Trial",
+        hi: "मुफ्त ट्रायल",
+        ar: "تجربة مجانية",
+        ur: "مفت ٹرائل"
+      },
+      subscription_expired_text: {
+        te: "గడువు ముగిసింది",
+        en: "Expired",
+        hi: "समाप्त हो गया है",
+        ar: "منتهي الصلاحية",
+        ur: "میعاد ختم"
+      },
+      no_subscription_text: {
+        te: "సభ్యత్వం లేదు",
+        en: "No Subscription",
+        hi: "कोई सदस्यता नहीं",
+        ar: "لا يوجد اشتراك",
+        ur: "کوئی سبسکرپشن نہیں"
+      },
+      renew_subscription_link: {
+        te: "సభ్యత్వాన్ని పునరుద్ధరించు",
+        en: "Renew Subscription",
+        hi: "सदस्यता नवीनीकृत करें",
+        ar: "تجديد الاشتراك",
+        ur: "سبسکرپشن کی تجدید کریں"
+      },
+      view_logs_button: {
+        te: "సేవ్ చేసిన వివరాలను చూడు",
+        en: "View Saved Logs",
+        hi: "सहेजे गए लॉग देखें",
+        ar: "عرض السجلات المحفوظة",
+        ur: "محفوظ کردہ لاگز دیکھیں"
+      },
+      // Logs Section
+      logs_heading: {
+        te: "ట్రాక్టర్ పని వివరాలు సేవ్ చేయబడ్డాయి",
+        en: "Saved Tractor Work Logs",
+        hi: "सहेजे गए ट्रैक्टर कार्य लॉग",
+        ar: "سجلات عمل الجرار المحفوظة",
+        ur: "محفوظ کردہ ٹریکٹر کام کے لاگز"
+      },
+      logs_tagline: {
+        te: "ఇక్కడ మీ సేవ్ చేసిన పని యొక్క రికార్డు ఉంది.",
+        en: "Here is the record of your saved work.",
+        hi: "यहाँ आपके सहेजे गए कार्य का रिकॉर्ड है।",
+        ar: "هنا سجل عملك المحفوظ.",
+        ur: "یہاں آپ کے محفوظ کردہ کام کا ریکارڈ ہے۔"
+      },
+      no_logs_saved: {
+        te: "ఇంకా లాగ్‌లు సేవ్ చేయబడలేదు.",
+        en: "No logs saved yet.",
+        hi: "साफ़ करने के लिए कोई लॉग नहीं है।",
+        ar: "لا توجد سجلات لمسحها.",
+        ur: "ابھی تک کوئی لاگز محفوظ نہیں کیے گئے ہیں۔"
+      },
+      work_time: {
+        te: "పని సమయం",
+        en: "Work Time",
+        hi: "कार्य समय",
+        ar: "وقت العمل",
+        ur: "काम کا वक्त"
+      },
+      rate: {
+        te: "రేటు",
+        en: "Rate",
+        hi: "दर",
+        ar: "السعر",
+        ur: "شرح"
+      },
+      duration: {
+        te: "వ్యవధి",
+        en: "Duration",
+        hi: "अवधि",
+        ar: "المدة",
+        ur: "مدت"
+      },
+      trips_count_log: { 
+        te: "ట్రిప్పులు",
+        en: "Trips",
+        hi: "ट्रिप",
+        ar: "الرحلات",
+        ur: "ٹرپس"
+      },
+      cost_per_trip_log: { 
+        te: "ఒక ట్రిప్‌కు ధర",
+        en: "Cost per Trip",
+        hi: "प्रति ट्रिप लागत",
+        ar: "التكلفة لكل رحلة",
+        ur: "فی ٹرپ لاگت"
+      },
+      total_trips_display_log: { 
+        te: "మొత్తం ట్రిప్పులు",
+        en: "Total Trips",
+        hi: "कुल ट्रिप",
+        ar: "إجمالي الرحلات",
+        ur: "کل ٹرپس"
+      },
+      earnings: {
+        te: "ఆదాయం",
+        en: "Earnings",
+        hi: "कमाई",
+        ar: "الأرباح",
+        ur: "کمائی"
+      },
+      saved_on: {
+        te: "సేవ్ చేయబడింది",
+        en: "Saved on",
+        hi: "पर सहेजा गया",
+        ar: "تم الحفظ في",
+        ur: "اس پر محفوظ کیا گیا"
+      },
+      name: {
+        te: "పేరు",
+        en: "Name",
+        hi: "नाम",
+        ar: "الاسم",
+        ur: "نام"
+      },
+      phone: {
+        te: "ఫోన్",
+        en: "Phone",
+        hi: "फ़ोन",
+        ar: "الهاتف",
+        ur: "فون"
+      },
+      note_content_label: {
+        te: "నోట్ కంటెంట్",
+        en: "Note Content",
+        hi: "नोट सामग्री",
+        ar: "محتوى الملاحظة",
+        ur: "نوٹ کا مواد"
+      },
+      note_content_placeholder: {
+        te: "దయచేసి పని సమాచార వివరాలను నమోదు చేయండి",
+        en: "Please enter the work info details",
+        hi: "कृपया कार्य जानकारी विवरण दर्ज करें",
+        ar: "الرجاء إدخال تفاصيل معلومات العمل",
+        ur: "براہ کرم کام کی معلومات کی تفصیلات درج کریں"
+      },
+      // Subscription Plan Section
+      subscription_plans_heading: {
+        te: "మా సభ్యత్వ ప్లాన్‌లు",
+        en: "Our Subscription Plans",
+        hi: "हमारी सदस्यता योजनाएँ",
+        ar: "خطط اشتراكنا",
+        ur: "हमारी सब्सक्रपशन प्लान्स"
+      },
+      subscription_plans_tagline: {
+        te: "మీరు మీ అవసరాలకు సరిపోయే ప్లాన్‌ను ఎంచుకోవచ్చు.",
+        en: "You can choose a plan that suits your needs.",
+        hi: "आप अपनी ज़रूरतों के अनुरूप योजना चुन सकते हैं।",
+        ar: "يمكنك اختيار الخطة التي تناسب احتياجاتك.",
+        ur: "آپ اپنی ضروریات کے مطابق پلان کا انتخاب کر سکتے ہیں۔"
+      },
+      free_trial_heading: {
+        te: "ఉచిత ట్రయల్",
+        en: "Free Trial",
+        hi: "मुफ्त ट्रायल",
+        ar: "تجربة مجانية",
+        ur: "مفت ٹرائل"
+      },
+      free_trial_duration: {
+        te: "10 రోజులు ఉచితం",
+        en: "10 Days Free",
+        hi: "10 दिन मुफ़्त",
+        ar: "10 أيام مجانية",
+        ur: "10 دن مفت"
+      },
+      free_trial_tagline: {
+        te: "ప్రయాస లేకుండా ట్రాక్ చేయండి",
+        en: "Track effortlessly",
+        hi: "प्रयास के बिना ट्रैक करें",
+        ar: "تتبع بسهولة",
+        ur: "آسانی سے ट्रैक کریں"
+      },
+      activate_now_button: {
+        te: "ఇప్పుడు ప్రారంభించండి!",
+        en: "Activate Now!",
+        hi: "अभी सक्रिय करें!",
+        ar: "تفعيل الآن!",
+        ur: "ابھی فعال کریں!"
+      },
+      monthly_plan_heading: {
+        te: "నెలవారీ ప్లాన్",
+        en: "Monthly Plan",
+        hi: "मासिक योजना",
+        ar: "الخطة الشهرية",
+        ur: "ماہانہ پلان"
+      },
+      buy_now_button: {
+        te: "ఇప్పుడు కొనుగోలు చేయండి",
+        en: "Buy Now",
+        hi: "अभी खरीदें",
+        ar: "اشتري الآن",
+        ur: "ابھی خریدیں"
+      },
+      six_month_plan_heading: {
+        te: "6 నెలల ప్లాన్",
+        en: "6 Months Plan",
+        hi: "6 महीने की योजना",
+        ar: "خطة 6 أشهر",
+        ur: "6 ماہ کا پلان"
+      },
+      six_month_price_info: {
+        te: "(₹66.66/నెల)",
+        en: "(₹66.66/month)",
+        hi: "(₹66.66/महीना)",
+        ar: "(₹66.66/شهر)",
+        ur: "(₹66.66/ماہ)"
+      },
+      six_month_tagline: {
+        te: "అన్ని ప్రాథమిక ఫీచర్‌లతో",
+        en: "With all basic features",
+        hi: "सभी बुनियादी सुविधाओं के साथ",
+        ar: "مع جميع الميزات الأساسية",
+        ur: "تمام بنیادی خصوصیات کے ساتھ"
+      },
+      annual_plan_heading: {
+        te: "వార్షిక ప్లాన్",
+        en: "Annual Plan",
+        hi: "वार्षिक योजना",
+        ar: "الخطة السنوية",
+        ur: "سالانہ پلان"
+      },
+      annual_price_info: {
+        te: "(₹62.50/నెల)",
+        en: "(₹62.50/month)",
+        hi: "(₹62.50/महीना)",
+        ar: "(₹62.50/شهر)",
+        ur: "(₹62.50/ماہ)"
+      },
+      annual_tagline: {
+        te: "అపరిమిత వివరాలు & పూర్తి మద్దతు",
+        en: "Unlimited details & full support",
+        hi: "असीमित विवरण और पूर्ण समर्थन",
+        ar: "تفاصيل غير محدودة ودعم كامل",
+        ur: "لامحدود تفصیلات اور مکمل سپورٹ"
+      },
+      // Payment Options Section
+      payment_options_heading: {
+        te: "చెల్లింపు ఎంపికలు",
+        en: "Payment Options",
+        hi: "भुगतान विकल्प",
+        ar: "خيارات الدفع",
+        ur: "ادائیگی کے اختیارات"
+      },
+      selected_plan_info: {
+        te: "మీరు ఎంచుకున్న ప్లాన్:",
+        en: "You selected plan:",
+        hi: "आपने योजना चुनी है:",
+        ar: "الخطة التي اخترتها:",
+        ur: "آپ نے پلان منتخب کیا ہے:"
+      },
+      upi_option: {
+        te: "ఫోన్‌పే / UPI",
+        en: "PhonePe / UPI",
+        hi: "फ़ोनपे / UPI",
+        ar: "فون بي / UPI",
+        ur: "فون پے / یو پی آئی"
+      },
+      card_option: {
+        te: "డెబిట్ / క్రెడిట్ కార్డులు",
+        en: "Debit / Credit Cards",
+        hi: "డెబిట్ / క్రెడిట్ कार्ड",
+        ar: "بطاقات الخصم / الائتمان",
+        ur: "ڈیبٹ / کریڈٹ کارڈز"
+      },
+      netbanking_option: {
+        te: "నెట్ బ్యాంకింగ్",
+        en: "Net Banking",
+        hi: "नेट బ్యాంకింగ్",
+        ar: "الخدمات المصرفية عبر الإنترنت",
+        ur: "نیٹ بینکنگ"
+      },
+      wallet_option: {
+        te: "వాలెట్లు (Google Pay, Paytm)",
+        en: "Wallets (Google Pay, Paytm)",
+        hi: "वॉలెట్స్ (गूగుల్ పే, पेटीएम)",
+        ar: "المحافظ (جوجل باي، بي تي إం)",
+        ur: "والٹس (گوگل پے، پے ٹی ایم)"
+      },
+      // UPI Details
+      upi_details_heading: {
+        te: "UPI / ఫోన్‌పే వివరాలు",
+        en: "UPI / PhonePe Details",
+        hi: "UPI / फ़ोनपे विवरण",
+        ar: "تفاصيل UPI / فون بي",
+        ur: "یو پی آئی / فون پے کی تفصیلات"
+      },
+      upi_id_label: {
+        te: "UPI ID",
+        en: "UPI ID",
+        hi: "UPI ID",
+        ar: "معرف UPI",
+        ur: "یو پی آئی آئی ڈی"
+      },
+      upi_id_placeholder: {
+        te: "మీ UPI IDని నమోదు చేయండి (ఉదా: example@upi)",
+        en: "Enter your UPI ID (e.g., example@upi)",
+        hi: "अपनी UPI ID दर्ज करें (उदा: example@upi)",
+        ar: "أدخل معرف UPI الخاص بك (مثال: example@upi)",
+        ur: "اپنی یو پی آئی آئی ڈی درج کریں (مثال: example@upi)"
+      },
+      upi_name_label: {
+        te: "ఖాతాదారుని పేరు",
+        en: "Account Holder Name",
+        hi: "खाताधारक का नाम",
+        ar: "اسم صاحب الحساب",
+        ur: "کھاتہ دار کا نام"
+      },
+      upi_name_placeholder: {
+        te: "ఖాతాదారుని పేరును నమోదు చేయండి",
+        en: "Enter account holder's name",
+        hi: "खाताधारक का नाम दर्ज करें",
+        ar: "أدخل اسم صاحب الحساب",
+        ur: "کھاتہ دار کا نام درج کریں"
+      },
+      pay_button: {
+        te: "చెల్లించండి",
+        en: "Pay",
+        hi: "भुगतान करें",
+        ar: "ادفع",
+        ur: "ادائیگی کریں"
+      },
+      // Card Details
+      card_details_heading: {
+        te: "కార్డ్ వివరాలు",
+        en: "Card Details",
+        hi: "कार्ड विवरण",
+        ar: "تفاصيل البطاقة",
+        ur: "کارڈ کی تفصیلات"
+      },
+      card_number_label: {
+        te: "కార్డ్ నంబర్",
+        en: "Card Number",
+        hi: "कार्ड नंबर",
+        ar: "رقم البطاقة",
+        ur: "کارڈ نمبر"
+      },
+      card_number_placeholder: {
+        te: "xxxx xxxx xxxx xxxx",
+        en: "xxxx xxxx xxxx xxxx",
+        hi: "xxxx xxxx xxxx xxxx",
+        ar: "xxxx xxxx xxxx xxxx",
+        ur: "xxxx xxxx xxxx xxxx"
+      },
+      card_name_label: {
+        te: "కార్డుదారుని పేరు",
+        en: "Card Holder Name",
+        hi: "कार्डधारक का नाम",
+        ar: "اسم حامل البطاقة",
+        ur: "کارڈ ہولڈر کا نام"
+      },
+      card_name_placeholder: {
+        te: "కార్డుదారుని పేరును నమోదు చేయండి",
+        en: "Enter card holder's name",
+        hi: "कार्डधारक का नाम दर्ज करें",
+        ar: "أدخل اسم حامل البطاقة",
+        ur: "کارڈ ہولڈر کا نام درج کریں"
+      },
+      card_expiry_label: {
+        te: "గడువు తేదీ",
+        en: "Expiry Date",
+        hi: "समाप्ति तिथि",
+        ar: "تاريخ الانتهاء",
+        ur: "میعاد ختم ہونے کی تاریخ"
+      },
+      card_expiry_placeholder: {
+        te: "MM/YY",
+        en: "MM/YY",
+        hi: "MM/YY",
+        ar: "شهر/سنة",
+        ur: "MM/YY"
+      },
+      card_cvv_label: {
+        te: "CVV",
+        en: "CVV",
+        hi: "CVV",
+        ar: "رمز CVV",
+        ur: "سی وی وی"
+      },
+      card_cvv_placeholder: {
+        te: "xxx",
+        en: "xxx",
+        hi: "xxx",
+        ar: "xxx",
+        ur: "xxx"
+      },
+      // Net Banking Details
+      netbanking_details_heading: {
+        te: "నెట్ బ్యాంకింగ్ వివరాలు",
+        en: "Net Banking Details",
+        hi: "नेट बैंकिंग विवरण",
+        ar: "تفاصيل الخدمات المصرفية عبر الإنترنت",
+        ur: "نیٹ بینکنگ کی تفصیلات"
+      },
+      bank_select_label: {
+        te: "బ్యాంకును ఎంచుకోండి",
+        en: "Select Bank",
+        hi: "बैंक चुनें",
+        ar: "حدد البنك",
+        ur: "بینک منتخب کریں"
+      },
+      select_bank_option: {
+        te: "బ్యాంకును ఎంచుకోండి",
+        en: "Select Bank",
+        hi: "बैंक चुनें",
+        ar: "حدد البنك",
+        ur: "بینک منتخب کریں"
+      },
+      sbi_bank: {
+        te: "స్టేట్ బ్యాంక్ ఆఫ్ ఇండియా",
+        en: "State Bank of India",
+        hi: "भारतीय स्टेट बैंक",
+        ar: "بنك الدولة الهندي",
+        ur: "اسٹیٹ بینک آف انڈیا"
+      },
+      hdfc_bank: {
+        te: "HDFC బ్యాంక్",
+        en: "HDFC Bank",
+        hi: "एचडीएफसी बैंक",
+        ar: "بنك HDFC",
+        ur: "ایچ ڈی ایف سی بینک"
+      },
+      icici_bank: {
+        te: "ICICI బ్యాంక్",
+        en: "ICICI Bank",
+        hi: "आईसीआईसीआई बैंक",
+        ar: "بنك ICICI",
+        ur: "آئی سی آئی سی آئی بینک"
+      },
+      axis_bank: {
+        te: "యాక్సిస్ బ్యాంక్",
+        en: "Axis Bank",
+        hi: "एक्सिस बैंक",
+        ar: "بنك أكسيس",
+        ur: "ایکسس بینک"
+      },
+      other_banks: {
+        te: "ఇతర బ్యాంకులు",
+        en: "Other Banks",
+        hi: "अन्य बैंक",
+        ar: "بنوك أخرى",
+        ur: "دیگر بینک"
+      },
+      netbanking_id_label: {
+        te: "యూజర్ ID / ఖాతా సంఖ్య",
+        en: "User ID / Account Number",
+        hi: "यूज़र आईडी / खाता संख्या",
+        ar: "معرف المستخدم / رقم الحساب",
+        ur: "یوزر آئی ڈی / اکاؤنٹ نمبر"
+      },
+      netbanking_id_placeholder: {
+        te: "మీ యూజర్ ID లేదా ఖాతా సంఖ్యను నమోదు చేయండి",
+        en: "Enter your User ID or Account Number",
+        hi: "अपना यूज़र आईडी या खाता संख्या दर्ज करें",
+        ar: "أدخل معرف المستخدم أو رقم الحساب الخاص بك",
+        ur: "اپنی یوزر آئی ڈی یا اکاؤنٹ نمبر درج کریں"
+      },
+      // Wallet Details
+      wallet_details_heading: {
+        te: "వాలెట్ వివరాలు",
+        en: "Wallet Details",
+        hi: "वॉలెట్ विवरण",
+        ar: "تفاصيل المحفظة",
+        ur: "والٹ کی تفصیلات"
+      },
+      wallet_select_label: {
+        te: "వాలెట్‌ను ఎంచుకోండి",
+        en: "Select Wallet",
+        hi: "वॉलेट चुनें",
+        ar: "حدد المحفظة",
+        ur: "والٹ منتخب کریں"
+      },
+      select_wallet_option: {
+        te: "వాలెట్‌ను ఎంచుకోండి",
+        en: "Select Wallet",
+        hi: "वॉलेट चुनें",
+        ar: "حدد المحفظة",
+        ur: "والٹ منتخب کریں"
+      },
+      googlepay_wallet: {
+        te: "Google Pay",
+        en: "Google Pay",
+        hi: "गूగుల్ पे",
+        ar: "جوجل باي",
+        ur: "گوگل پے"
+      },
+      paytm_wallet: {
+        te: "Paytm",
+        en: "Paytm",
+        hi: "पेटीएम",
+        ar: "بي تي إం",
+        ur: "پے ٹی ایم"
+      },
+      phonepe_wallet_option: { 
+        te: "PhonePe",
+        en: "PhonePe",
+        hi: "फ़ोनपे",
+        ar: "فون بي",
+        ur: "فون پے"
+      },
+      amazonpay_wallet: {
+        te: "Amazon Pay",
+        en: "Amazon Pay",
+        hi: "أमेज़ॅन पे",
+        ar: "أمازون باي",
+        ur: "ایمیزون پے"
+      },
+      wallet_phone_label: {
+        te: "వాలెట్ ఫోన్ నంబర్",
+        en: "Wallet Phone Number",
+        hi: "वॉलेट फ़ोन नंबर",
+        ar: "رقم هاتف المحفظة",
+        ur: "فون نمبر"
+      },
+      wallet_phone_placeholder: {
+        te: "మీ రిజిస్టర్డ్ ఫోన్ నంబర్‌ను నమోదు చేయండి",
+        en: "Enter your registered phone number",
+        hi: "अपना पंजीकृत फ़ोन नंबर दर्ज करें",
+        ar: "أدخل رقم هاتفك المسجل",
+        ur: "اپنی رجسٹرڈ فون نمبر درج کریں"
+      },
+      wallet_phone_invalid: {
+        te: "దయచేసి చెల్లుబాటు అయ్యే ఫోన్ నంబర్‌ను నమోదు చేయండి (కనీసం 10 అంకెలు).",
+        en: "Please enter a valid phone number (at least 10 digits).",
+        hi: "कृपया एक मान्य फ़ोन नंबर दर्ज करें (कम से कम 10 अंक)।",
+        ar: "يرجى إدخال رقم هاتف صالح (10 أرقام على الأقل).",
+        ur: "براہ کرم ایک درست فون نمبر درج کریں (کم از کم 10 ہندسے)۔"
+      },
+
+      // Message Box Messages
+      name_updated_success: {
+        te: "పేరు విజయవంతంగా నవీకరించబడింది!",
+        en: "Name updated successfully!",
+        hi: "नाम सफलतापूर्वक अपडेट किया गया!",
+        ar: "تم تحديث الاسم بنجاح!",
+        ur: "نام کامیابی سے اپ ڈیٹ ہو گیا!"
+      },
+      name_phone_missing_error: {
+        te: "దయచేసి మొదట పేరు మరియు ఫోన్ నంబర్‌ను నమోదు చేయండి.",
+        en: "Please enter the name and phone number first.",
+        hi: "कृपया पहले नाम और फोन नंबर दर्ज करें।",
+        ar: "الرجاء إدخال الاسم ورقم الهاتف أولاً.",
+        ur: "براہ کرم پہلے نام اور فون نمبر درج کریں۔"
+      },
+      fill_time_rate_error: {
+        te: "దయచేసి సమయం మరియు రేటు నింపండి.",
+        en: "Please fill time and rate.",
+        hi: "कृपया समय और दर भरें।",
+        ar: "الرجاء تعبئة الوقت والسعر.",
+        ur: "براہ کرم وقت اور شرح بھریں۔"
+      },
+      end_time_error: {
+        te: "ముగింపు సమయం ప్రారంభ సమయం తర్వాత లేదా కనీసం 1 నిమిషం వ్యవధి ఉండాలి.",
+        en: "End time must be after start time or have at least 1 minute duration.",
+        hi: "समाप्ति का समय शुरू होने के समय के बाद या कम से कम 1 मिनट की अवधि का होना चाहिए।",
+        ar: "يجب أن يكون وقت الانتهاء بعد وقت البدء أو أن تكون المدة دقيقة واحدة على الأقل.",
+        ur: "اختتام کا وقت شروع ہونے کے وقت کے بعد یا کم از کم 1 منٹ کی مدت کا ہونا چاہیے۔"
+      },
+      hourly_calculation_success: {
+        te: "గంటకు ఆదాయం విజయవంతంగా లెక్కించబడింది!",
+        en: "Hourly earnings calculated successfully!",
+        hi: "घंटे की कमाई सफलतापूर्वक गणना की गई!",
+        ar: "تم حساب الأرباح بالساعة بنجاح!",
+        ur: "گھنٹے کی کمائی کامیابی سے حساب کی گئی!"
+      },
+      enter_valid_trips_cost_error: {
+        te: "దయచేసి ట్రిప్పులు మరియు ట్రిప్ ధర కోసం సరైన సంఖ్యలను నమోదు చేయండి.",
+        en: "Please enter valid numbers for trips and trip cost.",
+        hi: "कृपया ट्रिप और ट्रिप लागत के लिए मान्य संख्याएँ दर्ज करें।",
+        ar: "الرجاء إدخال أرقام صالحة للرحلات وتكلفة الرحلة.",
+        ur: "براہ کرم ٹرپس اور ٹرپ لاگت کے لیے درست نمبر درج کریں۔"
+      },
+      trip_calculation_success: {
+        te: "ట్రిప్ ఆదాయం విజయవంతంగా లెక్కించబడింది!",
+        en: "Trip earnings calculated successfully!",
+        hi: "ट्रिप की कमाई सफलतापूर्वक गणना की गई!",
+        ar: "تم حساب أرباح الرحلة بنجاح!",
+        ur: "ٹرپ کی کمائی کامیابی سے حساب کی گئی!"
+      },
+      combined_calculation_success: {
+        te: "మొత్తం ఆదాయం విజయవంతంగా లెక్కించబడింది!",
+        en: "Combined earnings calculated successfully!",
+        hi: "कुल कमाई सफलतापूर्वक गणना की गई!",
+        ar: "تم حساب الأرباح المجمعة بنجاح!",
+        ur: "کل کمائی کامیابی سے حساب کی گئی!"
+      },
+      fill_all_details_calculate_save_error: {
+        te: "దయచేసి అన్ని వివరాలను నింపి, సేవ్ చేయడానికి ముందు ఆదాయాన్ని లెక్కించండి.",
+        en: "Please fill all details and calculate earnings before saving.",
+        hi: "कृपया सभी विवरण भरें और सहेजने से पहले कमाई की गणना करें।",
+        ar: "الرجاء تعبئة جميع التفاصيل وحساب الأرباح قبل الحفظ.",
+        ur: "براہ کرم تمام تفصیلات بھریں اور محفوظ کرنے سے پہلے کمائی کا حساب لگائیں۔"
+      },
+      data_saved_success: {
+        te: "డేటా విజయవంతంగా సేవ్ చేయబడింది!",
+        en: "Data saved successfully!",
+        hi: "डेटा सफलतापूर्वक सहेजा गया!",
+        ar: "تم حفظ البيانات بنجاح!",
+        ur: "ڈیٹا کامیابی سے محفوظ کیا گیا!"
+      },
+      already_on_free_trial: {
+        te: "మీరు ఇప్పటికే ఉచిత ట్రయల్‌లో ఉన్నారు!",
+        en: "You are already on a free trial!",
+        hi: "आप पहले से ही एक मुफ्त ट्रायल पर हैं!",
+        ar: "أنت بالفعل في فترة تجريبية مجانية!",
+        ur: "آپ پہلے ہی مفت ٹرائل پر ہیں!"
+      },
+      free_trial_activated: {
+        te: "మీ ఉచిత ట్రయల్ ప్రారంభించబడింది! ఇది 10 రోజుల వరకు చెల్లుతుంది.",
+        en: "Your free trial has been activated! It is valid for 10 days.",
+        hi: "आपका मुफ्त ट्रायल सक्रिय हो गया है! यह 10 दिनों के लिए मान्य है।",
+        ar: "تم تفعيل الفترة التجريبية المجانية الخاصة بك! إنها صالحة لمدة 10 أيام.",
+        ur: "آپ کا مفت ٹرائل فعال کر دیا گیا ہے! ਇਹ 10 دن کے لیے درست ہے۔"
+      },
+      payment_successful: {
+        te: "ద్వారా ₹{amount} చెల్లింపు విజయవంతమైంది! మీ సభ్యత్వం సక్రియం చేయబడింది.",
+        en: "Payment of ₹{amount} via {method} successful! Your subscription is activated.",
+        hi: "₹{amount} का भुगतान {method} के माध्यम से सफलतापूर्वक हो गया! आपकी सदस्यता सक्रिय हो गई है।",
+        ar: "تم دفع {amount} ر.س عبر {method} بنجاح! تم تفعيل اشتراكك.",
+        ur: "₹{amount} کی ادائیگی {method} کے ذریعے کامیاب ہو گئی! آپ کی سبسکرپشن فعال ہو گئی ہے۔"
+      },
+      upi_details_missing: {
+        te: "దయచేసి మీ UPI ID మరియు పేరును నమోదు చేయండి.",
+        en: "Please enter your UPI ID and name.",
+        hi: "कृपया अपनी UPI ID और नाम दर्ज करें।",
+        ar: "الرجاء إدخال معرف UPI واسمك.",
+        ur: "براہ کرم اپنی یو پی آئی آئی ڈی اور نام درج کریں۔"
+      },
+      upi_id_invalid: {
+        te: "దయచేసి సరైన UPI IDని నమోదు చేయండి (ఉదా: example@bank).",
+        en: "Please enter a valid UPI ID (e.g., example@bank).",
+        hi: "कृपया एक मान्य UPI ID दर्ज करें (उदा: example@bank)।",
+        ar: "الرجاء إدخال معرف UPI صالح (مثال: example@bank).",
+        ur: "براہ کرم ایک درست یو پی آئی آئی डी درج کریں (مثال: example@bank)۔"
+      },
+      card_details_missing: {
+        te: "దయచేసి అన్ని కార్డ్ వివరాలను నమోదు చేయండి.",
+        en: "Please enter all card details.",
+        hi: "कृपया सभी कार्ड विवरण दर्ज करें।",
+        ar: "الرجاء إدخال جميع تفاصيل البطاقة.",
+        ur: "براہ کرم کارڈ کی تمام تفصیلات درج کریں۔"
+      },
+      card_number_invalid: {
+        te: "దయచేసి 16-అంకెల చెల్లుబాటు అయ్యే కార్డ్ నంబర్‌ను నమోదు చేయండి.",
+        en: "Please enter a valid 16-digit card number.",
+        hi: "कृपया 16-अंकीय मान्य कार्ड नंबर दर्ज करें।",
+        ar: "الرجاء إدخال رقم بطاقة صالح مكون من 16 رقمًا.",
+        ur: "براہ کرم 16 ہندسوں کا درست کارڈ نمبر درج کریں۔"
+      },
+      card_expiry_invalid: {
+        te: "గడువు తేదీని MM/YY ఆకృతిలో నమోదు చేయండి.",
+        en: "Please enter expiry date in MM/YY format.",
+        hi: "कृपया समाप्ति तिथि को MM/YY प्रारूप में दर्ज करें।",
+        ar: "الرجاء إدخال تاريخ انتهاء الصلاحية بتنسيق MM/YY.",
+        ur: "براہ کرم میعاد ختم ہونے کی تاریخ MM/YY فارمیٹ میں درج کریں۔"
+      },
+      card_cvv_invalid: {
+        te: "దయచేసి 3 లేదా 4-అంకెల చెల్లుబాటు అయ్యే CVVని నమోదు చేయండి.",
+        en: "Please enter a valid 3 or 4-digit CVV.",
+        hi: "कृपया 3 లేదా 4-అంकीय मान्य CVV दर्ज करें।",
+        ar: "الرجاء إدخال رمز CVV صالح مكون من 3 أو 4 أرقا.",
+        ur: "براہ کرم 3 یا 4 ہندسوں کا درست سی وی وی درج کریں۔"
+      },
+      netbanking_details_missing: {
+        te: "దయచేసి మీ బ్యాంకును మరియు యూజర్ ID/ఖాతా సంఖ్యను ఎంచుకోండి/నమోదు చేయండి.",
+        en: "Please select your bank and enter User ID/Account Number.",
+        hi: "कृपया अपना बैंक चुनें और यूज़र आईडी/खाता संख्या दर्ज करें।",
+        ar: "الرجاء تحديد البنك الخاص بك وإدخال معرف المستخدم/رقم الحساب.",
+        ur: "براہ کرم اپنا بینک منتخب کریں اور یوزر آئی डी/اکاؤنٹ نمبر درج کریں۔"
+      },
+      wallet_details_missing: {
+        te: "దయచేసి మీ వాలెట్‌ను ఎంచుకోండి మరియు ఫోన్ నంబర్‌ను నమోదు చేయండి.",
+        en: "Please select your wallet and enter phone number.",
+        hi: "कृपया अपना वॉलेट चुनें और फ़ोन नंबर दर्ज करें।",
+        ar: "الرجاء تحديد المحفظة وإدخال رقم الهاتف.",
+        ur: "براہ کرమ్ اپنا والٹ منتخب کریں اور فون نمبر درج کریں۔"
+      },
+      back_button: {
+        te: "వెనుకకు",
+        en: "Back",
+        hi: "पीछे",
+        ar: "عودة",
+        ur: "پیچھے"
+      },
+      cancel_button: {
+        te: "రద్దు చేయి",
+        en: "Cancel",
+        hi: "रद्द करें",
+        ar: "إلغاء",
+        ur: "منسوخ کریں"
+      },
+      confirm_button: {
+        te: "నిర్ధారించు",
+        en: "Confirm",
+        hi: "पुष्टि करें",
+        ar: "تأكيد",
+        ur: "تصدیق کریں"
+      },
+      months: {
+        te: "నెలలు",
+        en: "Months",
+        hi: "महीने",
+        ar: "أشهر",
+        ur: "مہینے"
+      },
+      year: {
+        te: "సంవత్సరం",
+        en: "Year",
+        hi: "साल",
+        ar: "سنة",
+        ur: "سال"
+      },
+      monthly_plan: {
+        te: "నెలవారీ ప్లాన్",
+        en: "Monthly Plan",
+        hi: "मासिक योजना",
+        ar: "الخطة الشهرية",
+        ur: "ماہانہ پلان"
+      },
+      six_month_plan: {
+        te: "6 నెలల ప్లాన్",
+        en: "6 Months Plan",
+        hi: "6 महीने की योजना",
+        ar: "خطة 6 أشهر",
+        ur: "6 ماہ کا پلان"
+      },
+      annual_plan: {
+        te: "వార్షిక ప్లాన్",
+        en: "Annual Plan",
+        hi: "वार्षिक योजना",
+        ar: "الخطة السنوية",
+        ur: "سالانہ پلان"
+      },
+      monthly_plan_price: { 
+        te: "₹150 / నెల",
+        en: "₹150 / month",
+        hi: "₹150 / महीना",
+        ar: "₹150 / شهر",
+        ur: "₹150 / ماہ"
+      },
+      monthly_plan_tagline: { 
+        te: "అన్ని ప్రాథమిక ఫీచర్‌లతో",
+        en: "With all basic features",
+        hi: "सभी बुनियादी सुविधाओं के साथ",
+        ar: "مع جميع الميزات الأساسية",
+        ur: "تمام بنیادی خصوصیات کے ساتھ"
+      },
+      note_details_missing: { 
+        te: "దయచేసి నోట్ కంటెంట్ నింపండి.",
+        en: "Please fill note content.",
+        hi: "कृपया नोट सामग्री भरें।",
+        ar: "الرجاء تعبئة محتوى الملاحظة.",
+        ur: "براహ کرم نوٹ کا مواد بھریں۔"
+      },
+      search_logs_placeholder: {
+        te: "పేరు లేదా ఫోన్ ద్వారా శోధించండి...",
+        en: "Search by name or phone...",
+        hi: "नाम या फ़ोन से खोजें...",
+        ar: "البحث بالاسم أو الهاتف...",
+        ur: "نام یا فون سے تلاش کریں..."
+      },
+      feedback_option: { 
+        te: "అభిప్రాయం",
+        en: "Feedback",
+        hi: "प्रतिक्रिया",
+        ar: "ملاحظات",
+        ur: "فیڈ بیک"
+      },
+      feedback_message: { 
+        te: "మీ అభిప్రాయాన్ని పంపడానికి దయచేసి మీ ఇమెయిల్ క్లయింట్‌ను తనిఖీ చేయండి. (manatractor77@gmail.com)",
+        en: "Please check your email client to send your feedback. (manatractor77@gmail.com)",
+        hi: "अपनी प्रतिक्रिया भेजने के लिए कृपया अपना ईमेल क्लाइंट जांचें। (manatractor77@gmail.com)",
+        ar: "الرجاء التحقق من عميل البريد الإلكتروني الخاص بك لإرسال ملاحظاتك. (manatractor77@gmail.com)",
+        ur: "اپنی رائے بھیجنے کے لیے براہ کرم اپنا ای میل کلائنٹ چیک کریں۔ (manatractor77@gmail.com)"
+      },
+      contact_picker_not_supported: {
+        te: "ఈ బ్రౌజర్‌లో కాంటాక్ట్ పికర్ APIకి మద్దతు లేదు.",
+        en: "Contact Picker API not supported on this browser.",
+        hi: "इस ब्राउज़र पर संपर्क पिकर एपीआई समर्थित नहीं है।",
+        ar: "واجهة برمجة تطبيقات منتقي جهات الاتصال غير مدعومة في هذا المتصفح.",
+        ur: "اس براؤزر پر رابطہ چنندہ API کی حمایت نہیں ہے۔"
+      },
+      paid_status: { te: "చెల్లించారు", en: "Paid", hi: "भुगतान किया गया", ar: "مدفوع", ur: "ادا کیا گیا" },
+      due_status: { te: "చెల్లించవలసినది", en: "Due", hi: "देय", ar: "مستحق", ur: "واجب الادا" },
+      advance_status: { te: "అడ్వాన్స్", en: "Advance", hi: "अग्रिम", ar: "مقدم", ur: "پیشگی" },
+      sms_button: { te: "SMS పంపండి", en: "Send SMS", hi: "एसएमएस भेजें", ar: "إرسال رسالة نصية", ur: "ایس ایم ایس بھیجیں" },
+      sms_send_error: { te: "SMS పంపడానికి ఫోన్ నంబర్ లేదు.", en: "No phone number available to send SMS.", hi: "SMS भेजने के लिए कोई फ़ोन नंबर उपलब्ध नहीं है।", ar: "لا يوجد رقم هاتف متاح لإرسال رسالة نصية.", ur: "ایس ایم ایس بھیجنے کے لیے کوئی فون نمبر دستیاب نہیں ہے۔" },
+      sms_body_template: {
+        te: "మీ ట్రాక్టర్ పని వివరాలు:\nతేదీ: {date}\nపేరు: {name}\nఫోన్: {phone}\n{hourlyDetails}\n{tripDetails}\nమొత్తం: {totalEarnings}\nనోట్: {noteContent}\nచెల్లింపు స్థితి: {paymentStatus}",
+        en: "Your Tractor Work Details:\nDate: {date}\nName: {name}\nPhone: {phone}\n{hourlyDetails}\n{tripDetails}\nTotal Amount: {totalEarnings}\nNote: {noteContent}\nPayment Status: {paymentStatus}",
+        hi: "आपके ट्रैक्टर के काम का विवरण:\nतारीख: {date}\nनाम: {name}\nफ़ोन: {phone}\n{hourlyDetails}\n{tripDetails}\nकुल राशि: {totalEarnings}\nनोट: {noteContent}\nभुगतान की स्थिति: {paymentStatus}",
+        ar: "تفاصيل عمل الجرار الخاص بك:\nالتاريخ: {date}\nالاسم: {name}\nالهاتف: {phone}\n{hourlyDetails}\n{tripDetails}\nالمبلغ الإجمالي: {totalEarnings}\nملاحظة: {noteContent}\nحالة الدفع: {paymentStatus}",
+        ur: "آپ کے ٹریکٹر کے کام کی تفصیلات:\nتاریخ: {date}\nنام: {name}\nفون: {phone}\n{hourlyDetails}\n{tripDetails}\nکل رقم: {totalEarnings}\nنوٹ: {noteContent}\nادائیگی کی حیثیت: {paymentStatus}"
+      },
+      sms_hourly_template: {
+        te: "పని సమయం: {startTime} - {endTime} ({duration})\nగంటకు రేటు: ₹{rate} / hr\nగంటల ఆదాయం: ₹{earnings}",
+        en: "Work Time: {startTime} - {endTime} ({duration})\nRate per Hour: ₹{rate} / hr\nHourly Earnings: ₹{earnings}",
+        hi: "कार्य समय: {startTime} - {endTime} ({duration})\nप्रति घंटा दर: ₹{rate} / hr\nघंटे की कमाई: ₹{earnings}",
+        ar: "وقت العمل: {startTime} - {endTime} ({duration})\nالسعر بالساعة: ₹{rate} / hr\nأرباح بالساعة: ₹{earnings}",
+        ur: "کام کا وقت: {startTime} - {endTime} ({duration})\nفی گھنٹہ کی شرح: ₹{rate} / hr\nگھنٹے کی کمائی: ₹{earnings}"
+      },
+      sms_trip_template: {
+        te: "ట్రిప్పులు: {trips} ({tripsDisplay})\nఒక ట్రిప్‌కు ధర: ₹{costPerTrip}\nట్రిప్ ఆదాయం: ₹{earnings}",
+        en: "Trips: {trips} ({tripsDisplay})\nCost per Trip: ₹{costPerTrip}\nTrip Earnings: ₹{earnings}",
+        hi: "ट्रिप: {trips} ({tripsDisplay})\nप्रति ट्रिप लागत: ₹{costPerTrip}\nट्रिप की कमाई: ₹{earnings}",
+        ar: "الرحلات: {trips} ({tripsDisplay})\nالتكلفة لكل رحلة: ₹{costPerTrip}\nأرباح الرحلة: ₹{earnings}",
+        ur: "ٹرپس: {trips} ({tripsDisplay})\nفی ٹرپ لاگت: ₹{costPerTrip}\nٹرپ کی کمائی: ₹{earnings}"
+      },
+      footer_text: {
+        te: "© {year} మన ట్రాక్టర్. అన్ని హక్కులు ప్రత్యేకించబడ్డాయి.",
+        en: "© {year} ManaTractor. All rights reserved.",
+        hi: "© {year} मन ट्रैक्टर। सर्वाधिकार सुरक्षित।",
+        ar: "© {year} مانا تراكتور. كل الحقوق محفوظة.",
+        ur: "© {year} مانا ٹریکٹر۔ جملہ حقوق محفوظ ہیں۔"
+      }
+    };
+
+    // --- Helper Functions ---
+
+    // Function to translate a given key based on the current language
+    function T(key) {
+      return translations[key]?.[currentLang] || key; // Fallback to key if translation not found
+    }
+
+    // Function to display messages to the user
+    function showMessage(message, type = 'success') {
+      const messageBox = document.getElementById('messageBox');
+      messageBox.textContent = message;
+      messageBox.className = `message-box show ${type}`; 
+
+      setTimeout(() => {
+        messageBox.classList.remove('show');
+      }, 3000); 
+    }
+
+    // Helper function to convert 24-hour time (HH:MM) to 12-hour format (HH:MM AM/PM)
+    function formatTime12Hour(timeString) {
+      if (!timeString) return '';
+      const [hours, minutes] = timeString.split(':').map(Number);
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const formattedHours = hours % 12 || 12; // Convert 0 to 12 for 12 AM/PM
+      const formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
+      return `${formattedHours}:${formattedMinutes} ${ampm}`;
+    }
+
+    // Function to format numbers with commas
+    function formatNumberWithCommas(number) {
+        if (number === null || number === undefined) return '0';
+        let num = number;
+        if (typeof num === 'string') {
+            num = parseFloat(num.replace(/[₹,]/g, ''));
+        }
+        if (isNaN(num)) {
+            return '0';
+        }
+        return Math.round(num).toLocaleString('en-US');
+    }
+
+
+    // --- Core UI Logic Functions ---
+
+    // Function to set the current language and update all UI text
+    function setLanguage(langCode) {
+      currentLang = langCode;
+      localStorage.setItem('manatractorLang', langCode); // Save preference
+
+      // Update dropdown selection in the hamburger menu
+      document.getElementById('languageSelectorMenu').value = langCode;
+      
+      // Update editable welcome heading
+      const user = window.auth.currentUser;
+      const userName = (user ? user.displayName : null) || 'User';
+      document.getElementById('welcomeHeading').innerHTML = T('welcome_heading').replace('{userName}', userName);
+
+      // Update all other static text elements
+      document.getElementById('tagline').textContent = T('tagline');
+      document.getElementById('nameLabel').textContent = T('name_label');
+      document.getElementById('userName').placeholder = T('name_placeholder');
+      document.getElementById('phoneLabel').textContent = T('phone_label');
+      document.getElementById('userPhoneNumber').placeholder = T('phone_placeholder');
+      document.getElementById('dateLabel').textContent = T('date_label');
+      document.getElementById('startTimeLabel').textContent = T('start_time_label');
+      document.getElementById('endTimeLabel').textContent = T('end_time_label');
+      document.getElementById('ratePerHourLabel').textContent = T('rate_per_hour_label');
+      document.getElementById('numberOfTripsLabel').textContent = T('total_trips_label');
+      document.getElementById('costPerTripLabel').textContent = T('cost_per_trip_label');
+      document.getElementById('calculateBtn').textContent = T('calculate_button');
+      document.getElementById('saveBtn').textContent = T('save_button');
+      
+      document.getElementById('hourlyTimeLabel').textContent = T('hourly_time_label');
+      document.getElementById('hourlyEarningsLabel').textContent = T('hourly_earnings_label');
+      document.getElementById('tripCountLabel').textContent = T('trip_count_display_label');
+      document.getElementById('tripEarningsLabel').textContent = T('trip_earnings_label');
+      document.getElementById('combinedEarningsLabel').textContent = T('combined_earnings_label');
+
+      document.getElementById('viewLogsBtnMenu').textContent = T('view_logs_button');
+      document.getElementById('renewSubscriptionLinkMenu').textContent = T('renew_subscription_link');
+      document.getElementById('feedbackLinkMenu').textContent = T('feedback_option');
+
+      document.getElementById('noteContentLabel').textContent = T('note_content_label');
+      document.getElementById('noteContent').placeholder = T('note_content_placeholder');
+      
+      // Logs Section
+      document.getElementById('logsHeading').textContent = T('logs_heading');
+      document.getElementById('logsTagline').textContent = T('logs_tagline');
+      document.getElementById('logSearchInput').placeholder = T('search_logs_placeholder');
+      
+      // Subscription Plans Section
+      document.getElementById('subscriptionPlansHeading').textContent = T('subscription_plans_heading');
+      document.getElementById('subscriptionPlansTagline').textContent = T('subscription_plans_tagline');
+      document.getElementById('freeTrialHeading').textContent = T('free_trial_heading');
+      document.getElementById('freeTrialDuration').textContent = T('free_trial_duration');
+      document.getElementById('freeTrialTagline').textContent = T('free_trial_tagline');
+      document.getElementById('activateFreeTrialBtn').textContent = T('activate_now_button');
+      
+      document.getElementById('monthlyPlanHeading').textContent = T('monthly_plan_heading');
+      document.getElementById('monthlyPlanPrice').textContent = T('monthly_plan_price');
+      document.getElementById('monthlyPlanTagline').textContent = T('monthly_plan_tagline');
+      document.getElementById('buyMonthlyBtn').textContent = T('buy_now_button');
+
+      document.getElementById('sixMonthPlanHeading').textContent = T('six_month_plan_heading');
+      document.getElementById('sixMonthPlanPrice').innerHTML = `₹400 / 6 ${T('months')} <span class="text-sm text-gray-500">${T('six_month_price_info')}</span>`;
+      document.getElementById('sixMonthPlanTagline').textContent = T('six_month_tagline');
+      document.getElementById('buySixMonthBtn').textContent = T('buy_now_button');
+      document.getElementById('annualPlanHeading').textContent = T('annual_plan_heading');
+      document.getElementById('annualPlanPrice').innerHTML = `₹750 / ${T('year')} <span class="text-sm text-gray-500">${T('annual_price_info')}</span>`;
+      document.getElementById('annualPlanTagline').textContent = T('annual_tagline');
+      document.getElementById('buyAnnualBtn').textContent = T('buy_now_button');
+
+      // Payment Options Section
+      document.getElementById('paymentOptionsHeading').textContent = T('payment_options_heading');
+      document.getElementById('upiOptionText').textContent = T('upi_option');
+      document.getElementById('cardOptionText').textContent = T('card_option');
+      document.getElementById('netbankingOptionText').textContent = T('netbanking_option');
+      document.getElementById('walletOptionText').textContent = T('wallet_option');
+
+      // UPI Details
+      document.getElementById('upiDetailsHeading').textContent = T('upi_details_heading');
+      document.getElementById('upiIdLabel').textContent = T('upi_id_label');
+      document.getElementById('upiId').placeholder = T('upi_id_placeholder');
+      document.getElementById('upiNameLabel').textContent = T('upi_name_label');
+      document.getElementById('upiName').placeholder = T('upi_name_placeholder');
+      document.getElementById('upiPayBtnText').textContent = T('pay_button');
+
+      // Card Details
+      document.getElementById('cardDetailsHeading').textContent = T('card_details_heading');
+      document.getElementById('cardNumberLabel').textContent = T('card_number_label');
+      document.getElementById('cardNumber').placeholder = T('card_number_placeholder');
+      document.getElementById('cardNameLabel').textContent = T('card_name_label');
+      document.getElementById('cardName').placeholder = T('card_name_placeholder');
+      document.getElementById('cardExpiryLabel').textContent = T('card_expiry_label');
+      document.getElementById('cardExpiry').placeholder = T('card_expiry_placeholder');
+      document.getElementById('cardCvvLabel').textContent = T('card_cvv_label');
+      document.getElementById('cardCvv').placeholder = 'xxx';
+      document.getElementById('cardPayBtnText').textContent = T('pay_button');
+
+      // Net Banking Details
+      document.getElementById('netbankingDetailsHeading').textContent = T('netbanking_details_heading');
+      document.getElementById('bankSelectLabel').textContent = T('bank_select_label');
+      const bankSelect = document.getElementById('bankSelect');
+      bankSelect.innerHTML = `
+        <option value="">${T('select_bank_option')}</option>
+        <option value="sbi">${T('sbi_bank')}</option>
+        <option value="hdfc">${T('hdfc_bank')}</option>
+        <option value="icici">${T('icici_bank')}</option>
+        <option value="axis">${T('axis_bank')}</option>
+        <option value="other">${T('other_banks')}</option>
+      `;
+      document.getElementById('netbankingIdLabel').textContent = T('netbanking_id_label');
+      document.getElementById('netbankingId').placeholder = T('netbanking_id_placeholder');
+      document.getElementById('netbankingPayBtnText').textContent = T('pay_button');
+
+      // Wallet Details
+      document.getElementById('walletDetailsHeading').textContent = T('wallet_details_heading');
+      document.getElementById('walletSelectLabel').textContent = T('wallet_select_label');
+      const walletSelect = document.getElementById('walletSelect');
+      walletSelect.innerHTML = `
+        <option value="">${T('select_wallet_option')}</option>
+        <option value="googlepay">${T('googlepay_wallet')}</option>
+        <option value="paytm">${T('paytm_wallet')}</option>
+        <option value="phonepe">${T('phonepe_wallet_option')}</option>
+        <option value="amazonpay">${T('amazonpay_wallet')}</option>
+      `;
+      document.getElementById('walletPhoneNumberLabel').textContent = T('wallet_phone_label');
+      document.getElementById('walletPhoneNumber').placeholder = T('wallet_phone_placeholder');
+      document.getElementById('walletPayBtnText').textContent = T('pay_button');
+
+      // Custom Confirm Modal
+      document.getElementById('confirmModalCancelBtn').textContent = T('cancel_button');
+      document.getElementById('confirmModalConfirmBtn').textContent = T('confirm_button');
+      
+      // Set footer text
+      const footerYearText = T('footer_text').replace('{year}', new Date().getFullYear());
+      document.getElementById('footerText').textContent = footerYearText;
+      document.getElementById('footerTextLogs').textContent = footerYearText;
+      document.getElementById('footerTextSubscription').textContent = footerYearText;
+
+
+      // Re-render dynamic content that relies on language
+      updateSubscriptionDisplay();
+      if (document.getElementById('logsSection').classList.contains('hidden') === false) {
+        loadLogs();
+      }
+      if (document.getElementById('paymentOptionsSection').classList.contains('hidden') === false) {
+        const selectedPlanNameElement = document.getElementById('selectedPlanName');
+        const planKey = selectedPlanNameElement.getAttribute('data-plan-key');
+        document.getElementById('selectedPlanInfoPrefix').textContent = T('selected_plan_info');
+        document.getElementById('selectedPlanName').textContent = T(planKey);
+      }
+    }
+
+    // Function to show/hide sections
+    function showSection(sectionId) {
+        const sections = ['dashboardSection', 'logsSection', 'subscriptionPlanSection', 'paymentOptionsSection'];
+        sections.forEach(id => {
+            const section = document.getElementById(id);
+            if (section) {
+                if (id === sectionId) {
+                    section.classList.remove('hidden');
+                } else {
+                    section.classList.add('hidden');
+                }
+            }
+        });
+    }
+
+    // Function to hide all specific payment detail sections
+    function hideAllPaymentDetails() {
+        document.getElementById('upiDetails').classList.add('hidden');
+        document.getElementById('cardDetails').classList.add('hidden');
+        document.getElementById('netbankingDetails').classList.add('hidden');
+        document.getElementById('walletDetails').classList.add('hidden');
+    }
+
+    function showDashboardView() {
+      showSection('dashboardSection');
+      updateSubscriptionDisplay();
+      hideAllPaymentDetails();
+      
+      // UPDATE: Clear name and phone number fields
+      document.getElementById('userName').value = '';
+      document.getElementById('userPhoneNumber').value = '';
+      
+      // Keep note content persistence as it wasn't requested to be cleared
+      document.getElementById('noteContent').value = localStorage.getItem('manatractorLastNoteContent') || '';
+
+      setCurrentDateAndStartTime();
+      document.getElementById('logSearchInput').value = '';
+
+      document.getElementById('hourlyTotalTime').textContent = '0 hrs';
+      document.getElementById('hourlyTotalEarnings').textContent = '₹0';
+      document.getElementById('tripTotalTrips').textContent = '0 trips';
+      document.getElementById('tripTotalEarnings').textContent = '₹0';
+      document.getElementById('combinedTotalEarnings').textContent = '₹0';
+
+      // Reset global calculation variables
+      currentHourlyEarnings = 0;
+      currentTripEarnings = 0;
+      currentCombinedEarnings = 0;
+      currentHourlyTime = '0 hrs';
+    }
+
+    function showLogsView() {
+      showSection('logsSection');
+      loadLogs();
+      hideAllPaymentDetails();
+    }
+
+    function showSubscriptionView() {
+        showSection('subscriptionPlanSection');
+        updateFreeTrialCardVisibility();
+        hideAllPaymentDetails();
+    }
+
+    // Function to set current date and start time
+    function setCurrentDateAndStartTime() {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
+
+        const hours = String(today.getHours()).padStart(2, '0');
+        const minutes = String(today.getMinutes()).padStart(2, '0');
+        const formattedTime = `${hours}:${minutes}`;
+
+        document.getElementById('workDate').value = formattedDate;
+        document.getElementById('startTime').value = formattedTime;
+    }
+
+    // Combined calculation function for both hourly and trip earnings
+    function calculateAllEarnings() {
+      const start = document.getElementById('startTime').value;
+      const end = document.getElementById('endTime').value;
+      const rate = parseFloat(document.getElementById('ratePerHour').value);
+
+      let hourlyHours = 0;
+      let hourlyEarnings = 0;
+      let hourlyCalculationSuccessful = false;
+
+      if (start && end && !isNaN(rate) && rate >= 0) {
+        const [startH, startM] = start.split(":").map(Number);
+        let [endH, endM] = end.split(":").map(Number);
+
+        const startMinutes = startH * 60 + startM;
+        let endMinutes = endH * 60 + endM;
+        if (endMinutes < startMinutes) {
+          endMinutes += 24 * 60; // Handle overnight work
+        }
+
+        const durationMinutes = endMinutes - startMinutes;
+
+        if (durationMinutes >= 0) {
+            const hours = Math.floor(durationMinutes / 60);
+            const minutes = durationMinutes % 60;
+            let timeParts = [];
+            if (hours > 0) timeParts.push(`${hours} hr${hours > 1 ? 's' : ''}`);
+            if (minutes > 0) timeParts.push(`${minutes} min${minutes > 1 ? 's' : ''}`);
+            const durationString = timeParts.length > 0 ? timeParts.join(' ') : '0 mins';
+
+            hourlyHours = durationMinutes / 60; 
+            hourlyEarnings = Math.round(hourlyHours * rate);
+
+            currentHourlyTime = durationString;
+            currentHourlyEarnings = hourlyEarnings;
+            
+            document.getElementById('hourlyTotalTime').textContent = durationString;
+            document.getElementById('hourlyTotalEarnings').textContent = `₹${formatNumberWithCommas(hourlyEarnings)}`;
+            hourlyCalculationSuccessful = true;
+        } else {
+            currentHourlyTime = '0 hrs';
+            currentHourlyEarnings = 0;
+            document.getElementById('hourlyTotalTime').textContent = '0 hrs';
+            document.getElementById('hourlyTotalEarnings').textContent = '₹0';
+            showMessage(T('end_time_error'), 'error');
+        }
+      } else {
+        currentHourlyTime = '0 hrs';
+        currentHourlyEarnings = 0;
+        document.getElementById('hourlyTotalTime').textContent = '0 hrs';
+        document.getElementById('hourlyTotalEarnings').textContent = '₹0';
+        if (start || end || rate > 0) {
+             showMessage(T('fill_time_rate_error'), 'error');
+        }
+      }
+
+      const numberOfTrips = parseInt(document.getElementById('numberOfTrips').value);
+      const costPerTrip = parseFloat(document.getElementById('costPerTrip').value);
+      let tripEarnings = 0;
+      let tripCalculationSuccessful = false;
+
+      if (!isNaN(numberOfTrips) && numberOfTrips >= 0 && !isNaN(costPerTrip) && costPerTrip >= 0) {
+        tripEarnings = Math.round(numberOfTrips * costPerTrip);
+        currentTripEarnings = tripEarnings;
+        document.getElementById('tripTotalTrips').textContent = `${numberOfTrips} ${T('trips_count_log').toLowerCase()}`;
+        document.getElementById('tripTotalEarnings').textContent = `₹${formatNumberWithCommas(tripEarnings)}`;
+        tripCalculationSuccessful = true;
+      } else {
+        currentTripEarnings = 0;
+        document.getElementById('tripTotalTrips').textContent = '0 trips';
+        document.getElementById('tripTotalEarnings').textContent = '₹0';
+        if (numberOfTrips > 0 || costPerTrip > 0) {
+            showMessage(T('enter_valid_trips_cost_error'), 'error');
+        }
+      }
+
+      const combinedTotal = hourlyEarnings + tripEarnings;
+      currentCombinedEarnings = combinedTotal;
+      document.getElementById('combinedTotalEarnings').textContent = `₹${formatNumberWithCommas(combinedTotal)}`;
+
+      if (hourlyCalculationSuccessful || tripCalculationSuccessful) {
+        showMessage(T('combined_calculation_success'), 'success');
+      } else if (!start && !end && isNaN(rate) && isNaN(numberOfTrips) && isNaN(costPerTrip)) {
+        // Do nothing if all fields are empty
+      }
+    }
+
+    // Function to save combined hourly and trip data
+    function saveCombinedData() {
+      const userNameInput = document.getElementById('userName');
+      const userPhoneNumberInput = document.getElementById('userPhoneNumber');
+
+      // Reset previous errors
+      userNameInput.classList.remove('input-error');
+      userPhoneNumberInput.classList.remove('input-error');
+
+      // Get and trim values
+      currentUserName = userNameInput.value.trim();
+      currentUserPhoneNumber = userPhoneNumberInput.value.trim();
+
+      // Mandatory check for name
+      if (!currentUserName) {
+        showMessage(T('name_phone_missing_error'), 'error');
+        userNameInput.classList.add('input-error');
+        userNameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      
+      // Phone number validation with visual feedback
+      const cleanedPhoneNumber = currentUserPhoneNumber.replace(/\D/g, '');
+      if (cleanedPhoneNumber.length < 10) {
+        showMessage(T('phone_invalid'), 'error');
+        userPhoneNumberInput.classList.add('input-error');
+        userPhoneNumberInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      
+      const date = document.getElementById('workDate').value;
+      const start = document.getElementById('startTime').value;
+      const end = document.getElementById('endTime').value;
+      const rate = parseFloat(document.getElementById('ratePerHour').value);
+      const numberOfTrips = parseInt(document.getElementById('numberOfTrips').value);
+      const costPerTrip = parseFloat(document.getElementById('costPerTrip').value);
+      const noteContent = document.getElementById('noteContent').value.trim();
+
+      const tripTripsDisplay = document.getElementById('tripTotalTrips').textContent;
+
+      const isHourlyDataValid = (start && end && !isNaN(rate) && rate >= 0 && currentHourlyEarnings > 0);
+      const isTripDataValid = (!isNaN(numberOfTrips) && numberOfTrips >= 0 && !isNaN(costPerTrip) && costPerTrip >= 0 && currentTripEarnings > 0);
+
+      if (!isHourlyDataValid && !isTripDataValid) {
+          showMessage(T('fill_all_details_calculate_save_error'), 'error');
+          return;
+      }
+      
+      localStorage.setItem('manatractorLastNoteContent', noteContent);
+
+      const record = {
+        type: 'combined',
+        userName: currentUserName,
+        userPhoneNumber: currentUserPhoneNumber,
+        date,
+        noteContent: noteContent,
+        timestamp: new Date().toISOString(),
+        combinedTotalEarnings: currentCombinedEarnings,
+        paymentStatus: 'default',
+        hourly: isHourlyDataValid ? { start, end, rate, time: currentHourlyTime, earnings: currentHourlyEarnings } : null,
+        trip: isTripDataValid ? { numberOfTrips, costPerTrip, tripsDisplay: tripTripsDisplay, earnings: currentTripEarnings } : null
+      };
+
+      const existing = JSON.parse(localStorage.getItem('tractorRecords') || '[]');
+      existing.push(record);
+      localStorage.setItem('tractorRecords', JSON.stringify(existing));
+
+      showMessage(T('data_saved_success'), 'success');
+
+      // Reset form fields
+      document.getElementById('startTime').value = '';
+      document.getElementById('endTime').value = '';
+      document.getElementById('ratePerHour').value = '2000';
+      document.getElementById('numberOfTrips').value = '0';
+      document.getElementById('costPerTrip').value = '500';
+      document.getElementById('noteContent').value = '';
+
+      // Reset display and global variables
+      showDashboardView(); 
+    }
+
+    // Function to filter logs based on search input
+    function filterLogs() {
+        const searchTerm = document.getElementById('logSearchInput').value.toLowerCase();
+        const allRecords = JSON.parse(localStorage.getItem('tractorRecords') || '[]');
+        
+        const filteredRecords = allRecords.filter(record => {
+            const nameMatch = record.userName.toLowerCase().includes(searchTerm);
+            const phoneMatch = record.userPhoneNumber.includes(searchTerm);
+            return nameMatch || phoneMatch;
+        });
+
+        renderLogs(filteredRecords);
+    }
+
+    // Function to render logs
+    function renderLogs(recordsToDisplay) {
+      const logsContainer = document.getElementById('logsContainer');
+      logsContainer.innerHTML = '';
+
+      if (recordsToDisplay.length === 0) {
+        logsContainer.innerHTML = `<p class="text-center text-gray-500">${T('no_logs_saved')}</p>`;
+        return;
+      }
+
+      recordsToDisplay.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      recordsToDisplay.forEach(record => {
+        const logCard = document.createElement('div');
+        logCard.className = 'bg-white border border-gray-200 rounded-xl p-4 shadow-sm';
+
+        let hourlyDetailsHtml = '';
+        if (record.hourly) {
+          const formattedStartTime = formatTime12Hour(record.hourly.start);
+          const formattedEndTime = formatTime12Hour(record.hourly.end);
+          hourlyDetailsHtml = `
+            <h4 class="font-semibold text-gray-700 mt-2 mb-1">${T('hourly_time_label')}</h4>
+            <p class="text-sm text-gray-700 mb-1"><span class="font-bold">${T('work_time')}:</span> ${formattedStartTime} - ${formattedEndTime}</p>
+            <p class="text-sm text-gray-700 mb-1"><span class="font-bold">${T('rate')}:</span> ₹${formatNumberWithCommas(record.hourly.rate)} / hr</p>
+            <p class="text-base text-gray-800"><span class="font-bold">${T('duration')}:</span> ${record.hourly.time}</p>
+            <p class="text-base text-gray-800"><span class="font-bold">${T('earnings')}:</span> ₹${formatNumberWithCommas(record.hourly.earnings)}</p>
+          `;
+        }
+
+        let tripDetailsHtml = '';
+        if (record.trip) {
+          tripDetailsHtml = `
+            <h4 class="font-semibold text-gray-700 mt-2 mb-1">${T('trip_earnings_label')}</h4>
+            <p class="text-sm text-gray-700 mb-1"><span class="font-bold">${T('trips_count_log')}:</span> ${record.trip.numberOfTrips}</p>
+            <p class="text-sm text-gray-700 mb-1"><span class="font-bold">${T('cost_per_trip_log')}:</span> ₹${formatNumberWithCommas(record.trip.costPerTrip)}</p>
+            <p class="text-base text-gray-800"><span class="font-bold">${T('total_trips_display_log')}:</span> ${record.trip.tripsDisplay}</p>
+            <p class="text-base text-gray-800"><span class="font-bold">${T('earnings')}:</span> ₹${formatNumberWithCommas(record.trip.earnings)}</p>
+          `;
+        }
+        
+        let noteDetailsHtml = '';
+        if (record.noteContent) {
+          noteDetailsHtml = `
+            <div class="mt-3 pt-3 border-t border-gray-100">
+              <h4 class="font-semibold text-gray-700 mb-1"><span class="font-bold">${T('note_content_label')}:</span></h4>
+              <p class="text-sm text-gray-700 whitespace-pre-wrap">${record.noteContent}</p>
+            </div>
+          `;
+        }
+
+        let paymentColorClass = 'text-blue-700';
+        if (record.paymentStatus === 'paid') paymentColorClass = 'text-green-600';
+        else if (record.paymentStatus === 'due') paymentColorClass = 'text-red-600';
+        else if (record.paymentStatus === 'advance') paymentColorClass = 'text-pink-600';
+
+        logCard.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold text-lg text-green-800">${record.date}</h3>
+            <span class="text-sm text-gray-500">${T('saved_on')}: ${new Date(record.timestamp).toLocaleDateString(currentLang)} ${new Date(record.timestamp).toLocaleTimeString(currentLang)}</span>
+          </div>
+          <p class="text-sm text-gray-700 mb-1"><span class="font-bold">${T('name')}:</span> ${record.userName}</p>
+          <p class="text-sm text-gray-700 mb-1"><span class="font-bold">${T('phone')}:</span> ${record.userPhoneNumber}</p>
+          ${hourlyDetailsHtml}
+          ${tripDetailsHtml}
+          <p class="text-xl font-bold ${paymentColorClass} mt-2 border-t pt-2 border-gray-200" id="combinedEarnings_${record.timestamp}">${T('combined_earnings_label')}: ₹${formatNumberWithCommas(record.combinedTotalEarnings)}</p>
+          ${noteDetailsHtml}
+          <div class="flex justify-end gap-2 mt-3" style="flex-wrap: wrap;">
+            <button onclick="updatePaymentStatus('${record.timestamp}', 'paid')" class="px-3 py-1 text-sm font-semibold rounded-md bg-green-100 text-green-700 hover:bg-green-200">${T('paid_status')}</button>
+            <button onclick="updatePaymentStatus('${record.timestamp}', 'due')" class="px-3 py-1 text-sm font-semibold rounded-md bg-red-100 text-red-700 hover:bg-red-200">${T('due_status')}</button>
+            <button onclick="updatePaymentStatus('${record.timestamp}', 'advance')" class="px-3 py-1 text-sm font-semibold rounded-md bg-pink-100 text-pink-700 hover:bg-pink-200">${T('advance_status')}</button>
+            <button onclick="sendLogViaSms('${record.timestamp}')" class="px-3 py-1 text-sm font-semibold rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200">${T('sms_button')}</button>
+          </div>
+        `;
+        logsContainer.appendChild(logCard);
+      });
+    }
+
+    function loadLogs() {
+        document.getElementById('logSearchInput').value = '';
+        filterLogs();
+    }
+
+    function activateFreeTrial() {
+        const freeTrialExpiry = localStorage.getItem('freeTrialExpiryDate');
+        const now = new Date();
+
+        if (freeTrialExpiry && new Date(freeTrialExpiry) > now) {
+            showMessage(T('already_on_free_trial'), 'error');
+            return;
+        }
+
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 10); // Set expiry to 10 days from now
+
+        localStorage.setItem('freeTrialExpiryDate', expiryDate.toISOString());
+        localStorage.setItem('hasUsedFreeTrial', 'true');
+
+        showMessage(T('free_trial_activated'), 'success');
+        updateSubscriptionDisplay();
+        updateFreeTrialCardVisibility();
+        showDashboardView();
+    }
+
+    function updateFreeTrialCardVisibility() {
+        const freeTrialCard = document.getElementById('freeTrialPlanCard');
+        const hasUsedFreeTrial = localStorage.getItem('hasUsedFreeTrial');
+        if (hasUsedFreeTrial === 'true') {
+            freeTrialCard.classList.add('hidden');
+        } else {
+            freeTrialCard.classList.remove('hidden');
+        }
+    }
+
+    function updateSubscriptionDisplay() {
+        const subscriptionValidityDisplay = document.getElementById('subscriptionValidityDisplay');
+        const validityTextSpan = document.getElementById('subscriptionValidityText');
+        const subscriptionExpiry = localStorage.getItem('subscriptionExpiryDate');
+        const freeTrialExpiry = localStorage.getItem('freeTrialExpiryDate');
+        const now = new Date();
+
+        subscriptionValidityDisplay.classList.remove('text-red-600', 'text-green-600', 'text-gray-600');
+
+        if (subscriptionExpiry && new Date(subscriptionExpiry) > now) {
+            const expiryDate = new Date(subscriptionExpiry);
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            const formattedDate = expiryDate.toLocaleDateString(currentLang, options);
+            validityTextSpan.textContent = T('subscription_valid_till_text');
+            subscriptionValidityDisplay.textContent = formattedDate;
+            subscriptionValidityDisplay.classList.add('text-green-600');
+        } else if (freeTrialExpiry && new Date(freeTrialExpiry) > now) {
+            validityTextSpan.textContent = '';
+            subscriptionValidityDisplay.textContent = T('free_trial_status_text');
+            subscriptionValidityDisplay.classList.add('text-green-600');
+        } else if ((subscriptionExpiry && new Date(subscriptionExpiry) <= now) || (freeTrialExpiry && new Date(freeTrialExpiry) <= now && localStorage.getItem('hasUsedFreeTrial') === 'true')) {
+            validityTextSpan.textContent = T('subscription_status_label');
+            subscriptionValidityDisplay.textContent = T('subscription_expired_text');
+            subscriptionValidityDisplay.classList.add('text-red-600');
+        } else {
+            validityTextSpan.textContent = T('subscription_status_label');
+            subscriptionValidityDisplay.textContent = T('no_subscription_text');
+            subscriptionValidityDisplay.classList.add('text-gray-600');
+        }
+    }
+
+    function showPaymentOptions(planKey, price, durationInMonths) {
+        showSection('paymentOptionsSection');
+        document.getElementById('selectedPlanInfoPrefix').textContent = T('selected_plan_info');
+        document.getElementById('selectedPlanName').textContent = T(planKey);
+        document.getElementById('selectedPlanName').setAttribute('data-plan-key', planKey);
+        document.getElementById('selectedPlanPrice').textContent = `₹${price}`;
+        
+        selectedPlanAmount = price;
+        selectedPlanDuration = durationInMonths;
+        
+        document.getElementById('upiPayAmount').textContent = price;
+        document.getElementById('cardPayAmount').textContent = price;
+        document.getElementById('netbankingPayAmount').textContent = price;
+        document.getElementById('walletPayAmount').textContent = price;
+
+        hideAllPaymentDetails();
+    }
+
+    function showPaymentDetails(method) {
+        hideAllPaymentDetails();
+        const detailSections = {
+            'upi': 'upiDetails',
+            'card': 'cardDetails',
+            'netbanking': 'netbankingDetails',
+            'wallet': 'walletDetails'
+        };
+        if (detailSections[method]) {
+            document.getElementById(detailSections[method]).classList.remove('hidden');
+        }
+    }
+
+    function processPayment(method) {
+        let isValid = true;
+
+        if (method === 'UPI') {
+            const upiId = document.getElementById('upiId').value.trim();
+            const upiName = document.getElementById('upiName').value.trim();
+            if (!upiId || !upiName) {
+                showMessage(T('upi_details_missing'), 'error');
+                isValid = false;
+            } else if (!/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(upiId)) {
+                showMessage(T('upi_id_invalid'), 'error');
+                isValid = false;
+            }
+        } else if (method === 'Card') {
+            const cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
+            const cardName = document.getElementById('cardName').value.trim();
+            const cardExpiry = document.getElementById('cardExpiry').value.trim();
+            const cardCvv = document.getElementById('cardCvv').value.trim();
+
+            if (!cardNumber || !cardName || !cardExpiry || !cardCvv) {
+                showMessage(T('card_details_missing'), 'error');
+                isValid = false;
+            } else if (!/^\d{16}$/.test(cardNumber)) {
+                showMessage(T('card_number_invalid'), 'error');
+                isValid = false;
+            } else if (!/^(0[1-9]|1[0-2])\/?([0-9]{2})$/.test(cardExpiry)) {
+                showMessage(T('card_expiry_invalid'), 'error');
+                isValid = false;
+            } else if (!/^\d{3,4}$/.test(cardCvv)) {
+                showMessage(T('card_cvv_invalid'), 'error');
+                isValid = false;
+            }
+        } else if (method === 'Net Banking') {
+            const bank = document.getElementById('bankSelect').value;
+            const netbankingId = document.getElementById('netbankingId').value.trim();
+            if (!bank || !netbankingId) {
+                showMessage(T('netbanking_details_missing'), 'error');
+                isValid = false;
+            }
+        } else if (method === 'Wallet') {
+            const wallet = document.getElementById('walletSelect').value;
+            const walletPhoneNumber = document.getElementById('walletPhoneNumber').value.trim();
+            if (!wallet || !walletPhoneNumber) {
+                showMessage(T('wallet_details_missing'), 'error');
+                isValid = false;
+            } else {
+                const cleanedWalletPhoneNumber = walletPhoneNumber.replace(/\D/g, '');
+                if (cleanedWalletPhoneNumber.length < 10) {
+                    showMessage(T('wallet_phone_invalid'), 'error');
+                    isValid = false;
+                }
+            }
+        }
+
+        if (!isValid) {
+            return; // Stop if validation fails
+        }
+
+        // Simulate payment success
+        let successMessage = T('payment_successful')
+            .replace('{amount}', selectedPlanAmount)
+            .replace('{method}', method);
+        showMessage(successMessage, 'success');
+        
+        // Set new subscription expiry date
+        let expiryDate = new Date();
+        const currentExpiry = localStorage.getItem('subscriptionExpiryDate');
+        if (currentExpiry && new Date(currentExpiry) > expiryDate) {
+            expiryDate = new Date(currentExpiry);
+        }
+        expiryDate.setMonth(expiryDate.getMonth() + selectedPlanDuration);
+        localStorage.setItem('subscriptionExpiryDate', expiryDate.toISOString());
+        localStorage.removeItem('freeTrialExpiryDate'); // Paid plan overrides free trial
+
+        updateSubscriptionDisplay();
+        showDashboardView(); 
+    }
+
+    // NEW: Hamburger menu toggle function
+    function toggleHamburgerMenu() {
+        const sidebar = document.getElementById('hamburgerSidebar');
+        const overlay = document.getElementById('hamburgerOverlay');
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    }
+
+    // NEW: Function to handle feedback link click
+    function handleFeedbackClick(emailAddress) {
+        toggleHamburgerMenu();
+        showMessage(T('feedback_message'), 'success');
+        window.location.href = `mailto:${emailAddress}`;
+    }
+
+    // NEW: Function to update the payment status of a log entry
+    function updatePaymentStatus(timestamp, newStatus) {
+        const allRecords = JSON.parse(localStorage.getItem('tractorRecords') || '[]');
+        const recordIndex = allRecords.findIndex(record => record.timestamp === timestamp);
+
+        if (recordIndex > -1) {
+            allRecords[recordIndex].paymentStatus = newStatus;
+            localStorage.setItem('tractorRecords', JSON.stringify(allRecords));
+
+            const earningsElement = document.getElementById(`combinedEarnings_${timestamp}`);
+            if (earningsElement) {
+                earningsElement.classList.remove('text-green-600', 'text-red-600', 'text-pink-600', 'text-blue-700');
+                if (newStatus === 'paid') earningsElement.classList.add('text-green-600');
+                else if (newStatus === 'due') earningsElement.classList.add('text-red-600');
+                else if (newStatus === 'advance') earningsElement.classList.add('text-pink-600');
+                else earningsElement.classList.add('text-blue-700');
+            }
+            showMessage(`${T(newStatus + '_status')} status updated!`, 'success');
+        } else {
+            showMessage('Error: Log record not found.', 'error');
+        }
+    }
+
+    // NEW: Function to initiate a phone call
+    function callPhoneNumber() {
+      const phoneNumber = document.getElementById('userPhoneNumber').value.trim();
+      if (phoneNumber) {
+        window.location.href = `tel:${phoneNumber}`;
+      } else {
+        showMessage('Please enter a phone number to call.', 'error');
+      }
+    }
+    
+    // UPDATE: New function to get contact from phone
+    async function getContact() {
+      if ('contacts' in navigator && 'ContactsManager' in window) {
+        try {
+          const props = ['name', 'tel'];
+          const opts = { multiple: false };
+          const contacts = await navigator.contacts.select(props, opts);
+
+          if (contacts.length > 0) {
+            const contact = contacts[0];
+            if (contact.name && contact.name.length > 0) {
+              document.getElementById('userName').value = contact.name[0];
+            }
+            if (contact.tel && contact.tel.length > 0) {
+              document.getElementById('userPhoneNumber').value = contact.tel[0];
+            }
+          }
+        } catch (error) {
+          // User cancelled the picker or another error occurred
+          console.error('Contact picker was cancelled or failed.', error);
+        }
+      } else {
+        showMessage(T('contact_picker_not_supported'), 'error');
+      }
+    }
+
+    // NEW: Function to send log details via SMS
+    function sendLogViaSms(timestamp) {
+        const allRecords = JSON.parse(localStorage.getItem('tractorRecords') || '[]');
+        const record = allRecords.find(rec => rec.timestamp === timestamp);
+
+        if (!record) {
+            showMessage('Error: Log record not found for SMS.', 'error');
+            return;
+        }
+
+        const phoneNumber = record.userPhoneNumber;
+        if (!phoneNumber) {
+            showMessage(T('sms_send_error'), 'error');
+            return;
+        }
+
+        let hourlySmsContent = '';
+        if (record.hourly) {
+            const formattedStartTime = formatTime12Hour(record.hourly.start);
+            const formattedEndTime = formatTime12Hour(record.hourly.end);
+            hourlySmsContent = T('sms_hourly_template')
+                .replace('{startTime}', formattedStartTime)
+                .replace('{endTime}', formattedEndTime)
+                .replace('{duration}', record.hourly.time)
+                .replace('{rate}', formatNumberWithCommas(record.hourly.rate))
+                .replace('{earnings}', formatNumberWithCommas(record.hourly.earnings));
+        }
+
+        let tripSmsContent = '';
+        if (record.trip) {
+            tripSmsContent = T('sms_trip_template')
+                .replace('{trips}', record.trip.numberOfTrips)
+                .replace('{tripsDisplay}', record.trip.tripsDisplay)
+                .replace('{costPerTrip}', formatNumberWithCommas(record.trip.costPerTrip))
+                .replace('{earnings}', formatNumberWithCommas(record.trip.earnings));
+        }
+
+        let combinedDetails = [hourlySmsContent, tripSmsContent].filter(Boolean).join('\n');
+        const paymentStatusText = T(record.paymentStatus + '_status');
+
+        let smsBody = T('sms_body_template')
+            .replace('{date}', record.date)
+            .replace('{name}', record.userName)
+            .replace('{phone}', record.userPhoneNumber)
+            .replace('{hourlyDetails}\n{tripDetails}', combinedDetails)
+            .replace('{totalEarnings}', `₹${formatNumberWithCommas(record.combinedTotalEarnings)}`)
+            .replace('{noteContent}', record.noteContent || 'N/A')
+            .replace('{paymentStatus}', paymentStatusText);
+
+        smsBody = smsBody.replace(/\n\n+/g, '\n');
+        const encodedSmsBody = encodeURIComponent(smsBody);
+        window.location.href = `sms:${phoneNumber}?body=${encodedSmsBody}`;
+    }
+
+
+    // Make functions globally accessible
+    window.signInWithGoogle = signInWithGoogle;
+    window.sendOtp = sendOtp;
+    window.verifyOtp = verifyOtp;
+    window.logout = logout;
+    window.saveUserProfile = saveUserProfile;
+    window.previewSetupImage = previewSetupImage;
+    window.setLanguage = setLanguage;
+    window.showDashboardView = showDashboardView;
+    window.showLogsView = showLogsView;
+    window.showSubscriptionView = showSubscriptionView;
+    window.calculateAllEarnings = calculateAllEarnings;
+    window.saveCombinedData = saveCombinedData;
+    window.filterLogs = filterLogs;
+    window.activateFreeTrial = activateFreeTrial;
+    window.showPaymentOptions = showPaymentOptions;
+    window.showPaymentDetails = showPaymentDetails;
+    window.processPayment = processPayment;
+    window.toggleHamburgerMenu = toggleHamburgerMenu;
+    window.handleFeedbackClick = handleFeedbackClick;
+    window.updatePaymentStatus = updatePaymentStatus;
+    window.callPhoneNumber = callPhoneNumber;
+    window.getContact = getContact;
+    window.sendLogViaSms = sendLogViaSms;
+
+
+    // Initial load:
+    document.addEventListener('DOMContentLoaded', function() {
+      currentLang = localStorage.getItem('manatractorLang') || 'te';
+      setLanguage(currentLang);
+      checkAuthState();
+      
+      // Keep note content persistence
+      document.getElementById('noteContent').value = localStorage.getItem('manatractorLastNoteContent') || '';
+      
+      setCurrentDateAndStartTime();
+    });
+
+  </script>
+</body>
+</html>
