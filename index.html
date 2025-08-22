@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="te">
 <head>
   <meta charset="UTF-8" />
@@ -18,7 +18,7 @@
     const firebaseConfig = typeof __firebase_config !== 'undefined' 
         ? JSON.parse(__firebase_config)
         : {
-  apiKey: "AIzaSyBT4oxE7y1U63on4RW6MTvJDAkMcjaWWqU",
+             apiKey: "AIzaSyBT4oxE7y1U63on4RW6MTvJDAkMcjaWWqU",
   authDomain: "our-tracotr.firebaseapp.com",
   projectId: "our-tracotr",
   storageBucket: "our-tracotr.firebasestorage.app",
@@ -720,9 +720,23 @@
                 }
             }
         } catch (error) {
+            // *** FIX STARTS HERE ***
+            // If reading the user's profile fails (e.g., Firestore permissions),
+            // don't send them back to login. Instead, send them to the setup page.
+            // This allows new users to create a profile and provides a better UX for existing users if the database is temporarily unavailable.
             console.error("Error checking user profile:", error);
-            showMessage(`Error loading profile: ${error.message}`, 'error');
-            showView('loginSection'); // Fallback to login on error
+            showMessage(`Could not load profile. Please set it up now.`, 'error');
+            
+            showView('setupProfileSection');
+            
+            // Pre-fill with any info we have from the auth provider
+            if (user.displayName) {
+                document.getElementById('setupProfileName').value = user.displayName;
+            }
+            if (user.photoURL) {
+                document.getElementById('setupProfilePreview').src = user.photoURL;
+            }
+            // *** FIX ENDS HERE ***
         }
     }
 
@@ -921,7 +935,7 @@
       welcome_heading: {
         te: "స్వాగతం, <span class='font-bold'>{userName}</span> అన్న 🚜",
         en: "Welcome, <span class='font-bold'>{userName}</span> Anna 🚜",
-        hi: "स्वागत है, <span class='font-bold'>{userName}</span> अन्ना �",
+        hi: "स्वागत है, <span class='font-bold'>{userName}</span> अन्ना 🚜",
         ar: "أهلاً بك، <span class='font-bold'>{userName}</span> أنا🚜 ",
         ur: "خوش آمدید، <span class='font-bold'>{userName}</span> انا 🚜"
       },
@@ -2771,3 +2785,4 @@
   </script>
 </body>
 </html>
+
